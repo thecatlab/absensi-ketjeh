@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(brew --version)",
+      "Bash(source \"$HOME/.nvm/nvm.sh\")",
+      "Bash(nvm ls:*)",
+      "Bash(npm create:*)",
+      "Bash(npx --yes create-vite@latest absensi-temp --template react)",
+      "Bash(mv absensi-temp/* absensi-temp/.* .)",
+      "Bash(npm install:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(sudo ln:*)",
+      "Bash(mkdir -p /Users/nusaindah/.local/bin)",
+      "Bash(ln -sf /Users/nusaindah/.nvm/versions/node/v24.14.1/bin/node /Users/nusaindah/.local/bin/node)",
+      "Bash(ln -sf /Users/nusaindah/.nvm/versions/node/v24.14.1/bin/npm /Users/nusaindah/.local/bin/npm)",
+      "Bash(ln -sf /Users/nusaindah/.nvm/versions/node/v24.14.1/bin/npx /Users/nusaindah/.local/bin/npx)",
+      "Bash(/Users/nusaindah/.nvm/versions/node/v24.14.1/bin/node -e \":*)",
+      "Bash(sips -z 192 192 --out icon-192.png icon-512.png)",
+      "Bash(ls -la icon-*.png)",
+      "Bash(/Users/nusaindah/.nvm/versions/node/v24.14.1/bin/npx vite:*)",
+      "Bash(/Users/nusaindah/.nvm/versions/node/v24.14.1/bin/node node_modules/.bin/vite build)",
+      "Bash(git --version)"
+    ]
+  }
+}
