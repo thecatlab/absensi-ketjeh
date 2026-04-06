@@ -57,7 +57,7 @@ export default function HomePage({ employees, selectedEmployee, onSelectEmployee
       <p className="text-xs text-gray-400 mb-4 capitalize">{todayStr}</p>
 
       {/* Shift Info Card */}
-      <div className="bg-navy/5 rounded-2xl p-5 mb-5">
+      <div className="bg-navy/5 rounded-2xl p-5 mb-5 text-center">
         <p className="text-xs text-gray-500 mb-1">Jadwal Shift Hari Ini</p>
         <p className="text-2xl font-bold text-navy">
           {settings.shift_mulai} - {settings.shift_selesai}

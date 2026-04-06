@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import StatCard from '../../components/StatCard';
 import Modal from '../../components/Modal';
 import PhotoDisplay from '../../components/PhotoDisplay';
-import { getReport, getAllEmployees } from '../../api/client';
+import { getReport, getAllEmployees, getPengaturan } from '../../api/client';
 import { arrayToCSV, downloadCSV } from '../../utils/csvExport';
 
 export default function ReportsPage({ adminPassword }) {
@@ -14,9 +14,11 @@ export default function ReportsPage({ adminPassword }) {
   const [activeQuick, setActiveQuick] = useState(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [settings, setSettings] = useState(null);
 
   useEffect(() => {
     getAllEmployees().then(res => { if (res.success) setEmployees(res.data); });
+    getPengaturan().then(res => { if (res.success) setSettings(res.data); });
   }, []);
 
   useEffect(() => {
@@ -32,6 +34,11 @@ export default function ReportsPage({ adminPassword }) {
 
   function handleExport() {
     if (!data?.data?.length) return;
+
+    const shiftMulai = settings?.shift_mulai || '08:00';
+    const shiftSelesai = settings?.shift_selesai || '17:00';
+    const toleransi = parseInt(settings?.toleransi_terlambat_menit) || 15;
+
     const headers = [
       { key: 'tanggal', label: 'Tanggal' },
       { key: 'nama', label: 'Nama' },
@@ -39,13 +46,36 @@ export default function ReportsPage({ adminPassword }) {
       { key: 'jam_masuk', label: 'Jam Masuk' },
       { key: 'jam_keluar', label: 'Jam Keluar' },
       { key: 'durasi_jam', label: 'Durasi (jam)' },
+      { key: 'status_kehadiran', label: 'Status Kehadiran' },
+      { key: 'durasi_terlambat', label: 'Durasi Terlambat (menit)' },
+      { key: 'durasi_lembur', label: 'Durasi Lembur (menit)' },
       { key: 'status_lokasi_masuk', label: 'Lokasi Masuk' },
     ];
-    const rows = data.data.map(r => ({
-      ...r,
-      jam_masuk: extractTime(r.jam_masuk),
-      jam_keluar: extractTime(r.jam_keluar),
-    }));
+
+    const batasTerlambat = addMinutes(shiftMulai, toleransi);
+
+    const rows = data.data.map(r => {
+      const masuk = extractTime(r.jam_masuk);
+      const keluar = extractTime(r.jam_keluar);
+
+      // Terlambat: masuk > shift_mulai + toleransi
+      const terlambat = masuk > batasTerlambat;
+      const menitTerlambat = terlambat ? diffMinutes(shiftMulai, masuk) : 0;
+
+      // Lembur: keluar > shift_selesai
+      const lembur = keluar && keluar !== '-' && keluar > shiftSelesai;
+      const menitLembur = lembur ? diffMinutes(shiftSelesai, keluar) : 0;
+
+      return {
+        ...r,
+        jam_masuk: masuk,
+        jam_keluar: keluar,
+        status_kehadiran: terlambat ? 'Terlambat' : 'Tepat Waktu',
+        durasi_terlambat: menitTerlambat > 0 ? menitTerlambat : '',
+        durasi_lembur: menitLembur > 0 ? menitLembur : '',
+      };
+    });
+
     const csv = arrayToCSV(headers, rows);
     const filename = `absensi_${dari}_${sampai}.csv`;
     downloadCSV(filename, csv);
@@ -307,6 +337,25 @@ function extractTime(dtStr) {
   if (!dtStr) return '-';
   const parts = String(dtStr).split(' ');
   return parts.length >= 2 ? parts[1].substring(0, 5) : dtStr;
+}
+
+/**
+ * Add minutes to a "HH:MM" time string. Returns "HH:MM".
+ */
+function addMinutes(timeStr, minutes) {
+  const [h, m] = timeStr.split(':').map(Number);
+  const total = h * 60 + m + minutes;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/**
+ * Calculate difference in minutes between two "HH:MM" strings.
+ * Returns positive number if endTime > startTime.
+ */
+function diffMinutes(startTime, endTime) {
+  const [h1, m1] = startTime.split(':').map(Number);
+  const [h2, m2] = endTime.split(':').map(Number);
+  return (h2 * 60 + m2) - (h1 * 60 + m1);
 }
 
 function getQuickDateOptions() {
