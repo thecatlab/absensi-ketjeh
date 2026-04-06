@@ -387,7 +387,7 @@ export async function deleteAdminNote(noteId, password) {
 // Reports
 // ============================================================
 
-export async function getReport(dari, sampai, karyawanId) {
+export async function getReport(dari, sampai, karyawanId, password) {
   if (useMock()) {
     await delay(400);
     // Generate mock report data across the date range
@@ -449,7 +449,7 @@ export async function getReport(dari, sampai, karyawanId) {
       },
     };
   }
-  return gasPost('getReport', { dari, sampai, karyawan_id: karyawanId });
+  return gasPost('getReport', { dari, sampai, karyawan_id: karyawanId, password });
 }
 
 function addMinutesToTime(timeStr, minutes) {
