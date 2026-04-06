@@ -28,7 +28,13 @@
       "Bash(export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\")",
       "Bash(npx vite:*)",
       "Read(//Users/nusaindah/.nvm/versions/node/**)",
-      "Read(//opt/homebrew/bin/**)"
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//private/tmp/**)",
+      "Bash(cp /tmp/og-image-temp.svg.png /Users/nusaindah/Documents/Absensi/public/og-image.png)",
+      "Bash(python3 -c \"from PIL import Image; print\\(''PIL available''\\)\")",
+      "Bash(python3 -c \"import importlib; print\\(''no PIL''\\)\")",
+      "Bash(pip3 install:*)",
+      "Bash(python3:*)"
     ]
   }
 }
