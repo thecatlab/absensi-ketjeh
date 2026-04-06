@@ -34,7 +34,7 @@ function handleGetAbsensiHariIni() {
 /**
  * Get attendance records for a date range.
  */
-function handleGetAbsensi(dari, sampai) {
+function handleGetAbsensi(dari, sampai, karyawanId) {
   if (!dari || !sampai) {
     return { error: 'Parameter dari dan sampai diperlukan' };
   }
@@ -44,7 +44,9 @@ function handleGetAbsensi(dari, sampai) {
     const tanggal = a.tanggal instanceof Date
       ? Utilities.formatDate(a.tanggal, 'Asia/Jakarta', 'yyyy-MM-dd')
       : String(a.tanggal);
-    return tanggal >= dari && tanggal <= sampai;
+    if (tanggal < dari || tanggal > sampai) return false;
+    if (karyawanId && String(a.karyawan_id) !== String(karyawanId)) return false;
+    return true;
   });
 
   return { success: true, data: filtered };

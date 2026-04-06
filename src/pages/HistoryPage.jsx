@@ -1,17 +1,27 @@
 import { useState, useEffect } from 'react'
 import EmployeeSelect from '../components/EmployeeSelect'
 import Modal from '../components/Modal'
-import { getAbsensi } from '../api/client'
+import { getAbsensi, verifyEmployeePin } from '../api/client'
 
 export default function HistoryPage({ selectedEmployee, employees, onSelectEmployee }) {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
+  const [pinVerified, setPinVerified] = useState(false)
+  const [pin, setPin] = useState('')
+  const [pinError, setPinError] = useState(null)
+  const [verifying, setVerifying] = useState(false)
 
+  // Reset PIN state when employee changes
   useEffect(() => {
-    if (!selectedEmployee) {
-      setHistory([])
-      return
-    }
+    setPinVerified(false)
+    setPin('')
+    setPinError(null)
+    setHistory([])
+  }, [selectedEmployee?.id])
+
+  // Load history after PIN is verified
+  useEffect(() => {
+    if (!selectedEmployee || !pinVerified) return
     setLoading(true)
     const today = new Date()
     const dari = new Date(today)
@@ -24,7 +34,23 @@ export default function HistoryPage({ selectedEmployee, employees, onSelectEmplo
         if (res.success) setHistory(res.data)
       })
       .finally(() => setLoading(false))
-  }, [selectedEmployee])
+  }, [selectedEmployee, pinVerified])
+
+  async function handlePinSubmit(e) {
+    e.preventDefault()
+    if (!pin || !selectedEmployee) return
+    setVerifying(true)
+    setPinError(null)
+
+    const res = await verifyEmployeePin(selectedEmployee.id, pin)
+    setVerifying(false)
+
+    if (res.success && res.verified) {
+      setPinVerified(true)
+    } else {
+      setPinError('PIN salah. Silakan coba lagi.')
+    }
+  }
 
   return (
     <div className="px-5 py-6">
@@ -44,6 +70,48 @@ export default function HistoryPage({ selectedEmployee, employees, onSelectEmplo
       {!selectedEmployee ? (
         <div className="bg-gray-50 rounded-xl p-6 text-center text-gray-400 text-sm">
           Pilih nama karyawan untuk melihat riwayat
+        </div>
+      ) : !pinVerified ? (
+        /* PIN Gate */
+        <div className="bg-white border border-gray-100 rounded-xl p-6">
+          <div className="text-center mb-5">
+            <div className="w-12 h-12 bg-navy/10 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6 text-navy" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-gray-700">Verifikasi PIN</p>
+            <p className="text-xs text-gray-400 mt-1">Masukkan PIN untuk melihat riwayat absensi {selectedEmployee.nama}</p>
+          </div>
+
+          <form onSubmit={handlePinSubmit}>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="Masukkan PIN"
+              value={pin}
+              onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setPinError(null); }}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-center tracking-widest focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy/30 mb-3"
+              autoFocus
+            />
+
+            {pinError && (
+              <p className="text-xs text-danger text-center mb-3">{pinError}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={!pin || verifying}
+              className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors ${
+                !pin || verifying
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-navy text-white active:bg-navy-dark'
+              }`}
+            >
+              {verifying ? 'Memverifikasi...' : 'Lihat Riwayat'}
+            </button>
+          </form>
         </div>
       ) : loading ? (
         <div className="space-y-3">
@@ -142,22 +210,7 @@ function AttendanceDetail({ record }) {
         </div>
 
         {/* Photo */}
-        {record.foto_masuk_url ? (
-          <div className="mb-3">
-            <img
-              src={record.foto_masuk_url}
-              alt="Foto Masuk"
-              className="w-20 h-20 rounded-xl object-cover border-2 border-white shadow-sm"
-            />
-          </div>
-        ) : (
-          <div className="mb-3 w-20 h-20 rounded-xl bg-gray-200 flex items-center justify-center">
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-            </svg>
-          </div>
-        )}
+        <PhotoDisplay url={record.foto_masuk_url} alt="Foto Masuk" />
 
         {/* GPS Status */}
         <div className="flex items-center gap-2">
@@ -183,22 +236,7 @@ function AttendanceDetail({ record }) {
         </div>
 
         {/* Photo */}
-        {record.foto_keluar_url ? (
-          <div className="mb-3">
-            <img
-              src={record.foto_keluar_url}
-              alt="Foto Keluar"
-              className="w-20 h-20 rounded-xl object-cover border-2 border-white shadow-sm"
-            />
-          </div>
-        ) : (
-          <div className="mb-3 w-20 h-20 rounded-xl bg-gray-200 flex items-center justify-center">
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-            </svg>
-          </div>
-        )}
+        <PhotoDisplay url={record.foto_keluar_url} alt="Foto Keluar" />
 
         {/* GPS Status */}
         {record.status_lokasi_keluar && (
@@ -218,6 +256,47 @@ function AttendanceDetail({ record }) {
         </div>
       )}
     </div>
+  )
+}
+
+function PhotoDisplay({ url, alt }) {
+  const [error, setError] = useState(false)
+
+  if (!url) {
+    return (
+      <div className="mb-3 w-20 h-20 rounded-xl bg-gray-200 flex items-center justify-center">
+        <CameraIcon />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="mb-3 w-20 h-20 rounded-xl bg-gray-200 flex items-center justify-center">
+        <CameraIcon />
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-3">
+      <img
+        src={url}
+        alt={alt}
+        className="w-20 h-20 rounded-xl object-cover border-2 border-white shadow-sm"
+        onError={() => setError(true)}
+        referrerPolicy="no-referrer"
+      />
+    </div>
+  )
+}
+
+function CameraIcon() {
+  return (
+    <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+    </svg>
   )
 }
 

@@ -20,7 +20,15 @@
       "Bash(ls -la icon-*.png)",
       "Bash(/Users/nusaindah/.nvm/versions/node/v24.14.1/bin/npx vite:*)",
       "Bash(/Users/nusaindah/.nvm/versions/node/v24.14.1/bin/node node_modules/.bin/vite build)",
-      "Bash(git --version)"
+      "Bash(git --version)",
+      "Bash(open /Users/nusaindah/Documents/Absensi/gas/)",
+      "Bash(open /Users/nusaindah/Documents/Absensi/data/karyawan_initial.tsv)",
+      "Bash(open -a TextEdit /Users/nusaindah/Documents/Absensi/gas/Helpers.gs)",
+      "Bash(open -a TextEdit /Users/nusaindah/Documents/Absensi/gas/Helpers.gs /Users/nusaindah/Documents/Absensi/gas/Admin.gs)",
+      "Bash(export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\")",
+      "Bash(npx vite:*)",
+      "Read(//Users/nusaindah/.nvm/versions/node/**)",
+      "Read(//opt/homebrew/bin/**)"
     ]
   }
 }

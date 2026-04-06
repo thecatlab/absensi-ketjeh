@@ -97,7 +97,9 @@ export async function getAbsensi(dari, sampai, karyawanId) {
     let data = karyawanId ? generateMockHistory(karyawanId) : [];
     return { success: true, data };
   }
-  return gasGet('getAbsensi', { dari, sampai });
+  const params = { dari, sampai };
+  if (karyawanId) params.karyawan_id = karyawanId;
+  return gasGet('getAbsensi', params);
 }
 
 export async function getPengaturan() {
@@ -106,6 +108,22 @@ export async function getPengaturan() {
     return { success: true, data: MOCK_SETTINGS };
   }
   return gasGet('getPengaturan');
+}
+
+// ============================================================
+// PIN Verification (Employee)
+// ============================================================
+
+export async function verifyEmployeePin(karyawanId, pin) {
+  if (useMock()) {
+    await delay(300);
+    const emp = MOCK_EMPLOYEES.find(e => e.id === karyawanId);
+    if (emp && String(emp.pin) === String(pin)) {
+      return { success: true, verified: true };
+    }
+    return { success: true, verified: false };
+  }
+  return gasPost('verifyPin', { karyawan_id: karyawanId, pin });
 }
 
 // ============================================================

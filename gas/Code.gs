@@ -3,7 +3,7 @@
  * Main router for GET and POST requests.
  */
 
-const SPREADSHEET_ID = ''; // TODO: Fill with your Google Sheet ID
+const SPREADSHEET_ID = '1SagtqxaXoAe2a-2BM0a7ejilsRr87oUyMdmEi86OSiM';
 
 function getSpreadsheet() {
   return SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -28,7 +28,7 @@ function doGet(e) {
         break;
 
       case 'getAbsensi':
-        result = handleGetAbsensi(e.parameter.dari, e.parameter.sampai);
+        result = handleGetAbsensi(e.parameter.dari, e.parameter.sampai, e.parameter.karyawan_id);
         break;
 
       case 'getPengaturan':
@@ -41,6 +41,10 @@ function doGet(e) {
 
       case 'cekStatusHariIni':
         result = handleCekStatusHariIni(e.parameter.karyawan_id);
+        break;
+
+      case 'getAdminNotes':
+        result = handleGetAdminNotes();
         break;
 
       case 'downloadAbsensi':
@@ -98,6 +102,22 @@ function doPost(e) {
 
       case 'hapusShiftKhusus':
         result = handleHapusShiftKhusus(body);
+        break;
+
+      case 'getReport':
+        result = handleGetReport(body);
+        break;
+
+      case 'tambahAdminNote':
+        result = handleTambahAdminNote(body);
+        break;
+
+      case 'hapusAdminNote':
+        result = handleHapusAdminNote(body);
+        break;
+
+      case 'verifyPin':
+        result = handleVerifyPin(body);
         break;
 
       default:

@@ -1,0 +1,26 @@
+id	nama	jabatan	kategori	aktif	tanggal_masuk	pin
+K001	Febrianto	Manajer	on-site	TRUE	2026-04-06	2801
+K002	Delima Kusuma Wardani	Kasir	on-site	TRUE	2026-04-06	3912
+K003	Denisa Amelia	Waiter/Waitress	on-site	TRUE	2026-04-06	4523
+K004	Rendra Putra Wibawa	Captain Floor	on-site	TRUE	2026-04-06	5634
+K005	Ardhika	Waiter/Waitress	on-site	TRUE	2026-04-06	6745
+K006	Anisa Bunga Prameswari	Kitchen	on-site	TRUE	2026-04-06	7856
+K007	Septyan Satria Hanindya	Kitchen	on-site	TRUE	2026-04-06	8967
+K008	Feby Maulana	Kitchen	on-site	TRUE	2026-04-06	9178
+K009	Iqbal Nur Muhammad	Kitchen	on-site	TRUE	2026-04-06	1289
+K010	Rohyat	Head Chef	on-site	TRUE	2026-04-06	2390
+K011	M. Rizal Rizky Ramadhan	Barista	on-site	TRUE	2026-04-06	3401
+K012	Sukron Alhakim Wibowo	Bartender	on-site	TRUE	2026-04-06	4512
+K013	Agung Wahyu Riyadi	Purchasing	mobile	TRUE	2026-04-06	5623
+K014	PT - Firly	Waiter/Waitress	on-site	TRUE	2026-04-06	6134
+K015	PT - Ilyas	Waiter/Waitress	on-site	TRUE	2026-04-06	7245
+K016	PT - Fajar	Waiter/Waitress	on-site	TRUE	2026-04-06	8356
+K017	PT - Martham	Kitchen	on-site	TRUE	2026-04-06	9467
+K018	PT - Prihatin	Kitchen	on-site	TRUE	2026-04-06	1578
+K019	PT - Lina	Kitchen	on-site	TRUE	2026-04-06	2689
+K020	PT - Ilham	Waiter/Waitress	on-site	TRUE	2026-04-06	3790
+K021	PT - Aliya	Waiter/Waitress	on-site	TRUE	2026-04-06	4801
+K022	PT - Anggi	Waiter/Waitress	on-site	TRUE	2026-04-06	5912
+K023	PT - Rizka	Waiter/Waitress	on-site	TRUE	2026-04-06	6023
+K024	PT - Wildan	Kitchen	on-site	TRUE	2026-04-06	7134
+K025	PT - Lindu	Kitchen	on-site	TRUE	2026-04-06	8245

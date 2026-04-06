@@ -13,10 +13,12 @@ function getSheet(name) {
 
 /**
  * Convert sheet data to array of objects using header row as keys.
+ * Uses getDisplayValues() to avoid Google Sheets Date object issues.
  */
 function sheetToObjects(sheetName) {
   const sheet = getSheet(sheetName);
-  const data = sheet.getDataRange().getValues();
+  const range = sheet.getDataRange();
+  const data = range.getDisplayValues(); // Returns strings as displayed
   if (data.length < 2) return [];
 
   const headers = data[0];
@@ -37,7 +39,7 @@ function sheetToObjects(sheetName) {
  */
 function findRowIndex(sheetName, colIndex, value) {
   const sheet = getSheet(sheetName);
-  const data = sheet.getDataRange().getValues();
+  const data = sheet.getDataRange().getDisplayValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][colIndex]) === String(value)) {
       return i + 1; // 1-based row number
@@ -62,14 +64,28 @@ function getNowString() {
 
 /**
  * Get settings as key-value object from Pengaturan tab.
+ * Uses getDisplayValues() to get plain strings.
  */
 function getSettings() {
-  const rows = sheetToObjects('Pengaturan');
+  const sheet = getSheet('Pengaturan');
+  const data = sheet.getDataRange().getDisplayValues();
   const settings = {};
-  rows.forEach(r => {
-    settings[r.key] = r.value;
-  });
+  for (let i = 1; i < data.length; i++) {
+    const key = String(data[i][0]).trim();
+    const value = String(data[i][1]).trim();
+    if (key) settings[key] = value;
+  }
   return settings;
+}
+
+/**
+ * Force a cell to plain text format and set its value.
+ * This prevents Google Sheets from auto-converting "08:00" to a Date.
+ */
+function setPlainTextValue(sheet, row, col, value) {
+  const cell = sheet.getRange(row, col);
+  cell.setNumberFormat('@'); // @ = plain text format
+  cell.setValue(String(value));
 }
 
 // ============================================================
@@ -154,7 +170,8 @@ function uploadFoto(base64String, fileName) {
   // Make viewable with link
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-  return file.getUrl();
+  // Return direct image URL (not Drive page URL)
+  return 'https://lh3.googleusercontent.com/d/' + file.getId();
 }
 
 // ============================================================
@@ -162,11 +179,23 @@ function uploadFoto(base64String, fileName) {
 // ============================================================
 
 /**
+ * Handle verifyPin API request. Returns { success, verified }.
+ */
+function handleVerifyPin(body) {
+  const { karyawan_id, pin } = body;
+  if (!karyawan_id || !pin) {
+    return { error: 'karyawan_id dan pin diperlukan' };
+  }
+  const verified = verifyPin(karyawan_id, pin);
+  return { success: true, verified: verified };
+}
+
+/**
  * Verify employee PIN. Returns true if PIN matches.
  */
 function verifyPin(karyawanId, pin) {
   const sheet = getSheet('Karyawan');
-  const data = sheet.getDataRange().getValues();
+  const data = sheet.getDataRange().getDisplayValues();
   const headers = data[0];
   const pinCol = headers.indexOf('pin');
   const idCol = headers.indexOf('id');

@@ -69,7 +69,7 @@ export default function AdminLogin({ onLogin }) {
       </form>
 
       <p className="text-xs text-gray-400 text-center mt-6">
-        Mock password: admin123 (admin) / manager123 (manager)
+        Hubungi admin jika lupa password
       </p>
     </div>
   );

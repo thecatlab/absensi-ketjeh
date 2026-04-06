@@ -40,19 +40,23 @@ function handleEditPengaturan(body) {
   }
 
   const sheet = getSheet('Pengaturan');
-  const data = sheet.getDataRange().getValues();
+  const data = sheet.getDataRange().getDisplayValues();
 
   for (const [key, value] of Object.entries(newSettings)) {
     let found = false;
     for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]) === key) {
-        sheet.getRange(i + 1, 2).setValue(value);
+      if (String(data[i][0]).trim() === key) {
+        // Use plain text to prevent "08:00" becoming a Date
+        setPlainTextValue(sheet, i + 1, 2, value);
         found = true;
         break;
       }
     }
     if (!found) {
-      sheet.appendRow([key, value, '']);
+      const newRow = sheet.getLastRow() + 1;
+      setPlainTextValue(sheet, newRow, 1, key);
+      setPlainTextValue(sheet, newRow, 2, value);
+      setPlainTextValue(sheet, newRow, 3, '');
     }
   }
 
@@ -254,4 +258,74 @@ function handleGetReport(body) {
       rata_rata_durasi: rataRataDurasi
     }
   };
+}
+
+// ============================================================
+// Admin Notes (Catatan)
+// ============================================================
+
+function handleGetAdminNotes() {
+  const data = sheetToObjects('AdminNotes');
+  // Sort by date + time
+  data.sort((a, b) => {
+    const dateA = String(a.tanggal) + ' ' + String(a.jam);
+    const dateB = String(b.tanggal) + ' ' + String(b.jam);
+    return dateA.localeCompare(dateB);
+  });
+  return { success: true, data };
+}
+
+function handleTambahAdminNote(body) {
+  const { pesan, pengirim, password } = body;
+
+  // Verify admin/manager
+  const loginCheck = handleAdminLogin({ password });
+  if (!loginCheck.success) {
+    return { error: 'Akses ditolak.' };
+  }
+
+  if (!pesan || !pesan.trim()) {
+    return { error: 'Pesan tidak boleh kosong' };
+  }
+
+  const today = getTodayString();
+  const jam = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'HH:mm');
+  const id = 'N' + new Date().getTime();
+
+  const sheet = getSheet('AdminNotes');
+  sheet.appendRow([
+    id,                            // A: id
+    today,                         // B: tanggal
+    jam,                           // C: jam
+    pengirim || loginCheck.role,   // D: pengirim
+    pesan.trim()                   // E: pesan
+  ]);
+
+  return { success: true, message: 'Catatan berhasil ditambahkan' };
+}
+
+function handleHapusAdminNote(body) {
+  const { id, password } = body;
+
+  // Verify admin/manager
+  const loginCheck = handleAdminLogin({ password });
+  if (!loginCheck.success) {
+    return { error: 'Akses ditolak.' };
+  }
+
+  if (!id) {
+    return { error: 'ID catatan diperlukan' };
+  }
+
+  const sheet = getSheet('AdminNotes');
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (String(data[i][0]) === String(id)) {
+      sheet.deleteRow(i + 1);
+      return { success: true, message: 'Catatan berhasil dihapus' };
+    }
+  }
+
+  return { error: 'Catatan tidak ditemukan' };
 }
