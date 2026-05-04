@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 
 export default function InstallPrompt() {
+  const shouldDisablePrompt = import.meta.env.DEV || ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [dismissed, setDismissed] = useState(() => {
     const dismissedAt = localStorage.getItem('pwa-install-dismissed');
@@ -8,6 +9,7 @@ export default function InstallPrompt() {
   });
 
   useEffect(() => {
+    if (shouldDisablePrompt) return undefined;
     const handler = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -15,9 +17,9 @@ export default function InstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
+  }, [shouldDisablePrompt]);
 
-  if (!deferredPrompt || dismissed) return null;
+  if (shouldDisablePrompt || !deferredPrompt || dismissed) return null;
 
   async function handleInstall() {
     deferredPrompt.prompt();

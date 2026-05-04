@@ -104,12 +104,12 @@ export default function ReportsPage({ adminPassword }) {
   return (
     <div>
       {/* Quick Date Buttons */}
-      <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+      <div className="grid grid-cols-2 min-[420px]:grid-cols-4 gap-2 mb-3">
         {getQuickDateOptions().map(opt => (
           <button
             key={opt.label}
             onClick={() => { setDari(opt.dari); setSampai(opt.sampai); setActiveQuick(opt.label); }}
-            className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`min-h-10 px-3 py-2 rounded-lg text-xs font-medium leading-tight transition-colors ${
               activeQuick === opt.label
                 ? 'bg-navy text-white'
                 : 'bg-gray-100 text-gray-500 active:bg-gray-200'
@@ -122,14 +122,14 @@ export default function ReportsPage({ adminPassword }) {
 
       {/* Filters */}
       <div className="space-y-3 mb-5">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Dari</label>
             <input
               type="date"
               value={dari}
               onChange={e => { setDari(e.target.value); setActiveQuick(null); }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-navy"
+              className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-navy"
             />
           </div>
           <div>
@@ -138,7 +138,7 @@ export default function ReportsPage({ adminPassword }) {
               type="date"
               value={sampai}
               onChange={e => { setSampai(e.target.value); setActiveQuick(null); }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-navy"
+              className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-navy"
             />
           </div>
         </div>
@@ -157,17 +157,17 @@ export default function ReportsPage({ adminPassword }) {
         </div>
         <div>
           <label className="text-xs text-gray-500 mb-1 block">Filter keterlambatan</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
             {[
               { value: 'all', label: 'Semua' },
-              { value: 'late_any', label: 'Telat & Terlambat' },
+              { value: 'late_any', label: 'Toleransi & Terlambat' },
               { value: 'late_only', label: 'Terlambat' },
             ].map(option => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => setStatusFilter(option.value)}
-                className={`px-2 py-2 rounded-lg text-xs font-medium ${
+                className={`min-h-10 px-2 py-2 rounded-lg text-xs font-medium leading-tight ${
                   statusFilter === option.value
                     ? 'bg-navy text-white'
                     : 'bg-gray-100 text-gray-500 active:bg-gray-200'

@@ -32,6 +32,8 @@ export const MOCK_SETTINGS = {
   geofence_lat: '-7.6',
   geofence_lng: '110.6',
   geofence_radius_meter: '200',
+  briefing_photo_roles: 'Manager,Captain Floor',
+  reservation_manage_roles: 'Manager,Kasir',
   nama_perusahaan: 'Ketjeh Seafood & Leisure',
 };
 

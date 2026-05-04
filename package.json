@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "VITE_USE_MOCKS=true vite --host 127.0.0.1",
     "build": "vite build",
+    "build:mock": "VITE_USE_MOCKS=true vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:mock": "VITE_USE_MOCKS=true vite build && vite preview --host 127.0.0.1"
   },
   "dependencies": {
     "react": "^19.2.4",

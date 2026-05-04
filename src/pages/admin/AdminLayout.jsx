@@ -13,7 +13,7 @@ const TABS = [
   { id: 'pengumuman', label: 'Pengumuman' },
   { id: 'reservasi', label: 'Reservasi' },
   { id: 'todo', label: 'To-do' },
-  { id: 'karyawan', label: 'Karyawan' },
+  { id: 'karyawan', label: 'Pengaturan' },
   { id: 'shift', label: 'Shift' },
   { id: 'laporan', label: 'Laporan' },
   { id: 'catatan', label: 'Catatan' },

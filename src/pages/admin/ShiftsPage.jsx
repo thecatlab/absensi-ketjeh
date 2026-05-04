@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Modal from '../../components/Modal';
-import { getPengaturan, updateSettings, getShiftKhusus, addShiftKhusus, deleteShiftKhusus } from '../../api/client';
+import { getShiftKhusus, addShiftKhusus, deleteShiftKhusus } from '../../api/client';
 
 export default function ShiftsPage({ adminPassword }) {
-  const [settings, setSettings] = useState(null);
   const [shifts, setShifts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -11,11 +10,7 @@ export default function ShiftsPage({ adminPassword }) {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [settingsRes, shiftsRes] = await Promise.all([
-      getPengaturan(),
-      getShiftKhusus(),
-    ]);
-    if (settingsRes.success) setSettings(settingsRes.data);
+    const shiftsRes = await getShiftKhusus();
     if (shiftsRes.success) setShifts(shiftsRes.data);
     setLoading(false);
   }, []);
@@ -55,11 +50,8 @@ export default function ShiftsPage({ adminPassword }) {
         </div>
       )}
 
-      {/* Default Settings */}
-      <SettingsForm settings={settings} adminPassword={adminPassword} onSaved={(msg) => { showMsg(msg); loadAll(); }} />
-
       {/* Special Shifts */}
-      <div className="mt-6">
+      <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-700">Hari Khusus / Libur</h3>
           <button
@@ -91,115 +83,6 @@ export default function ShiftsPage({ adminPassword }) {
           onError={(msg) => showMsg(msg, true)}
         />
       </Modal>
-    </div>
-  );
-}
-
-// ============================================================
-// Default Settings Form
-// ============================================================
-
-function SettingsForm({ settings, adminPassword, onSaved }) {
-  const [form, setForm] = useState({
-    shift_mulai: settings?.shift_mulai || '08:00',
-    shift_selesai: settings?.shift_selesai || '17:00',
-    toleransi_terlambat_menit: settings?.toleransi_terlambat_menit || '15',
-    geofence_lat: settings?.geofence_lat || '',
-    geofence_lng: settings?.geofence_lng || '',
-    geofence_radius_meter: settings?.geofence_radius_meter || '200',
-  });
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
-
-  function update(field, value) {
-    setForm(prev => ({ ...prev, [field]: value }));
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    const res = await updateSettings(form, adminPassword);
-    setSaving(false);
-    if (res.success) {
-      setEditing(false);
-      onSaved('Pengaturan berhasil disimpan');
-    }
-  }
-
-  return (
-    <div className="bg-gray-50 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">Pengaturan Default</h3>
-        {!editing && (
-          <button onClick={() => setEditing(true)} className="text-xs text-navy font-medium">Edit</button>
-        )}
-      </div>
-
-      {!editing ? (
-        // Read-only view
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <InfoItem label="Jam Masuk" value={form.shift_mulai} />
-          <InfoItem label="Jam Keluar" value={form.shift_selesai} />
-          <InfoItem label="Toleransi" value={`${form.toleransi_terlambat_menit} menit`} />
-          <InfoItem label="Radius GPS" value={`${form.geofence_radius_meter} meter`} />
-          <InfoItem label="Latitude" value={form.geofence_lat || '-'} />
-          <InfoItem label="Longitude" value={form.geofence_lng || '-'} />
-        </div>
-      ) : (
-        // Edit form
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <FieldInput label="Jam Masuk" type="time" value={form.shift_mulai} onChange={v => update('shift_mulai', v)} />
-            <FieldInput label="Jam Keluar" type="time" value={form.shift_selesai} onChange={v => update('shift_selesai', v)} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FieldInput label="Toleransi (menit)" type="number" value={form.toleransi_terlambat_menit} onChange={v => update('toleransi_terlambat_menit', v)} />
-            <FieldInput label="Radius GPS (m)" type="number" value={form.geofence_radius_meter} onChange={v => update('geofence_radius_meter', v)} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FieldInput label="Latitude" type="text" value={form.geofence_lat} onChange={v => update('geofence_lat', v)} placeholder="-7.6xxx" />
-            <FieldInput label="Longitude" type="text" value={form.geofence_lng} onChange={v => update('geofence_lng', v)} placeholder="110.6xxx" />
-          </div>
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={() => setEditing(false)}
-              className="flex-1 py-2 rounded-lg text-sm font-medium bg-gray-200 text-gray-600"
-            >
-              Batal
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex-1 py-2 rounded-lg text-sm font-medium bg-navy text-white active:bg-navy-dark"
-            >
-              {saving ? 'Menyimpan...' : 'Simpan'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function InfoItem({ label, value }) {
-  return (
-    <div>
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className="font-medium text-gray-700">{value}</p>
-    </div>
-  );
-}
-
-function FieldInput({ label, type, value, onChange, placeholder }) {
-  return (
-    <div>
-      <label className="text-xs text-gray-500 mb-1 block">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-navy"
-      />
     </div>
   );
 }

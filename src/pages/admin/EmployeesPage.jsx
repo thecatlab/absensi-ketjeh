@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import Modal from '../../components/Modal';
 import EmployeeForm from '../../components/EmployeeForm';
-import { getAllEmployees, addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
+import SettingsPanel from './SettingsPanel';
+import { getAllEmployees, getPengaturan, addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
 
 export default function EmployeesPage({ adminPassword }) {
   const [employees, setEmployees] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState('employees');
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [modalMode, setModalMode] = useState(null); // null | 'add' | 'edit'
@@ -15,8 +18,11 @@ export default function EmployeesPage({ adminPassword }) {
 
   const loadEmployees = useCallback(() => {
     setLoading(true);
-    getAllEmployees()
-      .then(res => { if (res.success) setEmployees(res.data); })
+    Promise.all([getAllEmployees(), getPengaturan()])
+      .then(([employeesRes, settingsRes]) => {
+        if (employeesRes.success) setEmployees(employeesRes.data);
+        if (settingsRes.success) setSettings(settingsRes.data);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -96,6 +102,38 @@ export default function EmployeesPage({ adminPassword }) {
         </div>
       )}
 
+      <div className="grid grid-cols-2 gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+        {[
+          { id: 'employees', label: 'Karyawan' },
+          { id: 'settings', label: 'Pengaturan Umum' },
+        ].map(item => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setActiveView(item.id)}
+            className={`py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+              activeView === item.id ? 'bg-white text-navy shadow-sm' : 'text-gray-400'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {activeView === 'settings' ? (
+        loading ? (
+          <div className="h-40 bg-gray-100 rounded-xl animate-pulse" />
+        ) : (
+          <SettingsPanel
+            settings={settings}
+            employees={employees}
+            adminPassword={adminPassword}
+            onSaved={(text) => { showMessage(text); loadEmployees(); }}
+            onError={(text) => showMessage(text, true)}
+          />
+        )
+      ) : (
+        <>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -167,6 +205,8 @@ export default function EmployeesPage({ adminPassword }) {
           loading={saving}
         />
       </Modal>
+        </>
+      )}
     </div>
   );
 }

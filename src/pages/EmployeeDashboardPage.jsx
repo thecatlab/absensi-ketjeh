@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Camera from '../components/Camera';
-import { getEmployeeDashboard, setTodoStatus, uploadBriefingPhoto } from '../api/client';
+import { getEmployeeDashboard, getPengaturan, setTodoStatus, uploadBriefingPhoto } from '../api/client';
 import { CONFIG } from '../config';
+import { DEFAULT_BRIEFING_ROLES, isRoleAllowed } from '../utils/permissions';
 
 export default function EmployeeDashboardPage({ employee, embedded = false }) {
   const navigate = useNavigate();
@@ -14,13 +15,15 @@ export default function EmployeeDashboardPage({ employee, embedded = false }) {
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [briefingSaving, setBriefingSaving] = useState(false);
   const [message, setMessage] = useState(null);
-  const canUploadBriefing = ['manager', 'captain floor'].includes(String(employee.jabatan).toLowerCase());
+  const [settings, setSettings] = useState(null);
+  const canUploadBriefing = isRoleAllowed(employee.jabatan, settings, 'briefing_photo_roles', DEFAULT_BRIEFING_ROLES);
 
   const loadDashboard = useCallback(() => {
     setLoading(true);
-    getEmployeeDashboard(employee)
-      .then(res => {
-        if (res.success) setData(res);
+    Promise.all([getEmployeeDashboard(employee), getPengaturan()])
+      .then(([dashboardRes, settingsRes]) => {
+        if (dashboardRes.success) setData(dashboardRes);
+        if (settingsRes.success) setSettings(settingsRes.data);
       })
       .finally(() => setLoading(false));
   }, [employee]);
@@ -189,7 +192,7 @@ export default function EmployeeDashboardPage({ employee, embedded = false }) {
                   </div>
                 ) : briefingOpen ? (
                   <div className="space-y-3">
-                    <Camera onCapture={setBriefingPhoto} />
+                    <Camera onCapture={setBriefingPhoto} allowUpload />
                     <button
                       onClick={handleBriefingUpload}
                       disabled={!briefingPhoto || briefingSaving}
@@ -207,7 +210,7 @@ export default function EmployeeDashboardPage({ employee, embedded = false }) {
                     onClick={() => setBriefingOpen(true)}
                     className="w-full bg-warning/10 border border-warning/20 text-warning rounded-xl py-3 text-sm font-semibold"
                   >
-                    Ambil Foto Briefing
+                    Upload Foto Briefing
                   </button>
                 )}
               </Section>

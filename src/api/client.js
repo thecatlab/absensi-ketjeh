@@ -18,7 +18,7 @@ const GAS_URL = CONFIG.APPS_SCRIPT_URL;
 const CONFIGURATION_ERROR = 'Konfigurasi server belum disetel. Hubungi admin.';
 
 function shouldUseMock() {
-  return import.meta.env.DEV && !GAS_URL;
+  return import.meta.env.VITE_USE_MOCKS === 'true' || (import.meta.env.DEV && !GAS_URL);
 }
 
 function configurationError() {

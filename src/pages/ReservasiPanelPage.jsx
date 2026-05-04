@@ -1,10 +1,16 @@
+import { useEffect, useState } from 'react';
 import ReservasiPage from './admin/ReservasiPage';
-
-const MANAGER_ROLES = ['manager', 'kasir'];
+import { getPengaturan } from '../api/client';
+import { DEFAULT_RESERVATION_ROLES, isRoleAllowed } from '../utils/permissions';
 
 export default function ReservasiPanelPage({ selectedEmployee, verifiedAccess }) {
+  const [settings, setSettings] = useState(null);
   const isVerified = selectedEmployee && String(verifiedAccess?.employeeId) === String(selectedEmployee.id);
-  const canManage = isVerified && MANAGER_ROLES.includes(String(selectedEmployee?.jabatan || '').toLowerCase());
+  const canManage = isVerified && isRoleAllowed(selectedEmployee?.jabatan, settings, 'reservation_manage_roles', DEFAULT_RESERVATION_ROLES);
+
+  useEffect(() => {
+    getPengaturan().then(res => { if (res.success) setSettings(res.data); });
+  }, []);
 
   return (
     <div className="px-5 py-6">

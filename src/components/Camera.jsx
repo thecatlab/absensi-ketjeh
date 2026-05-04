@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { CONFIG } from '../config';
 
-export default function Camera({ onCapture }) {
+export default function Camera({ onCapture, allowUpload = false }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
   const streamRef = useRef(null);
   const [photo, setPhoto] = useState(null);
   const [error, setError] = useState(null);
@@ -71,6 +72,40 @@ export default function Camera({ onCapture }) {
     stopCamera();
   }
 
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const scale = Math.min(1, CONFIG.PHOTO_MAX_WIDTH / image.width);
+        canvas.width = image.width * scale;
+        canvas.height = image.height * scale;
+
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', CONFIG.PHOTO_QUALITY);
+        setPhoto(dataUrl);
+        onCapture(dataUrl.split(',')[1]);
+        setError(null);
+        stopCamera();
+      };
+      image.onerror = () => setError('Gagal membaca foto dari galeri.');
+      image.src = reader.result;
+    };
+    reader.onerror = () => setError('Gagal membaca foto dari galeri.');
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
   function retake() {
     setPhoto(null);
     onCapture(null);
@@ -81,15 +116,27 @@ export default function Camera({ onCapture }) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
         <p className="text-sm text-red-600 mb-2">{error}</p>
-        <button
-          onClick={() => {
-            setError(null);
-            startCamera();
-          }}
-          className="text-sm text-navy font-semibold"
-        >
-          Coba Lagi
-        </button>
+        {allowUpload && <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onInput={handleFileChange} onChange={handleFileChange} />}
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setError(null);
+              startCamera();
+            }}
+            className="flex-1 text-sm text-navy font-semibold bg-white rounded-lg py-2"
+          >
+            Coba Lagi
+          </button>
+          {allowUpload && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 text-sm text-navy font-semibold bg-white rounded-lg py-2"
+            >
+              Galeri
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -110,6 +157,7 @@ export default function Camera({ onCapture }) {
 
   return (
     <div className="relative">
+      {allowUpload && <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onInput={handleFileChange} onChange={handleFileChange} />}
       <video
         ref={videoRef}
         autoPlay
@@ -126,6 +174,15 @@ export default function Camera({ onCapture }) {
           aria-label="Ambil Foto"
         >
           <div className="w-10 h-10 bg-navy rounded-full mx-auto" />
+        </button>
+      )}
+      {allowUpload && (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="absolute top-3 right-3 z-10 bg-white/90 text-navy text-xs font-semibold px-3 py-2 rounded-lg shadow"
+        >
+          Galeri
         </button>
       )}
       {!cameraReady && (
