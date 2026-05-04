@@ -19,12 +19,6 @@ export default function AdminLogin({ onLogin }) {
     if (res.error) {
       setError(res.error);
     } else if (res.success) {
-      // Store session
-      localStorage.setItem('admin_session', JSON.stringify({
-        role: res.role,
-        password,
-        expiry: Date.now() + 8 * 60 * 60 * 1000,
-      }));
       onLogin(res.role, password);
     }
   }

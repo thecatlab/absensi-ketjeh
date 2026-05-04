@@ -4,9 +4,15 @@ import EmployeesPage from './EmployeesPage';
 import ShiftsPage from './ShiftsPage';
 import ReportsPage from './ReportsPage';
 import NotesPage from './NotesPage';
+import PengumumanPage from './PengumumanPage';
+import ReservasiPage from './ReservasiPage';
+import TodosPage from './TodosPage';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
+  { id: 'pengumuman', label: 'Pengumuman' },
+  { id: 'reservasi', label: 'Reservasi' },
+  { id: 'todo', label: 'To-do' },
   { id: 'karyawan', label: 'Karyawan' },
   { id: 'shift', label: 'Shift' },
   { id: 'laporan', label: 'Laporan' },
@@ -33,12 +39,12 @@ export default function AdminLayout({ role, password, onLogout }) {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-5 overflow-x-auto">
+      <div className="grid grid-cols-4 gap-1 bg-gray-100 rounded-xl p-1 mb-5">
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 text-xs font-medium py-2 px-3 rounded-lg transition-colors whitespace-nowrap ${
+            className={`text-xs font-medium py-2 px-2 rounded-lg transition-colors ${
               activeTab === tab.id
                 ? 'bg-white text-navy shadow-sm'
                 : 'text-gray-400 hover:text-gray-600'
@@ -50,7 +56,10 @@ export default function AdminLayout({ role, password, onLogout }) {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'dashboard' && <DashboardPage />}
+      {activeTab === 'dashboard' && <DashboardPage role={role} />}
+      {activeTab === 'pengumuman' && <PengumumanPage adminPassword={password} role={role} />}
+      {activeTab === 'reservasi' && <ReservasiPage adminPassword={password} startFormOpen={false} />}
+      {activeTab === 'todo' && <TodosPage adminPassword={password} />}
       {activeTab === 'karyawan' && <EmployeesPage adminPassword={password} />}
       {activeTab === 'shift' && <ShiftsPage adminPassword={password} />}
       {activeTab === 'laporan' && <ReportsPage adminPassword={password} />}

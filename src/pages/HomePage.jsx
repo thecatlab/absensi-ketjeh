@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import EmployeeSelect from '../components/EmployeeSelect'
-import { cekStatusHariIni, getPengaturan } from '../api/client'
+import EmployeeDashboardPage from './EmployeeDashboardPage'
+import { getPengaturan, verifyEmployeePin } from '../api/client'
 
-export default function HomePage({ employees, selectedEmployee, onSelectEmployee, loading }) {
-  const [clockStatus, setClockStatus] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
+export default function HomePage({ employees, selectedEmployee, onSelectEmployee, verifiedAccess, onPinVerified, loading }) {
   const [settings, setSettings] = useState({ shift_mulai: '08:00', shift_selesai: '17:00' })
 
   // Fetch settings on mount
@@ -15,27 +13,7 @@ export default function HomePage({ employees, selectedEmployee, onSelectEmployee
     })
   }, [])
 
-  // Fetch clock status when employee is selected
-  useEffect(() => {
-    if (!selectedEmployee) {
-      setClockStatus(null)
-      return
-    }
-    setStatusLoading(true)
-    cekStatusHariIni(selectedEmployee.id)
-      .then(res => {
-        if (res.success) setClockStatus(res)
-      })
-      .finally(() => setStatusLoading(false))
-  }, [selectedEmployee])
-
-  const todayStr = new Date().toLocaleDateString('id-ID', {
-    timeZone: 'Asia/Jakarta',
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  const isVerified = selectedEmployee && verifiedAccess?.employeeId === selectedEmployee.id
 
   return (
     <div className="px-5 py-6">
@@ -53,9 +31,16 @@ export default function HomePage({ employees, selectedEmployee, onSelectEmployee
         )}
       </div>
 
-      {/* Date Display */}
-      <p className="text-xs text-gray-400 mb-4 capitalize">{todayStr}</p>
+      {selectedEmployee && !isVerified && (
+        <PinGate employee={selectedEmployee} onVerified={onPinVerified} />
+      )}
 
+      {selectedEmployee && isVerified && (
+        <EmployeeDashboardPage employee={selectedEmployee} embedded />
+      )}
+
+      {!selectedEmployee && (
+        <>
       {/* Shift Info Card */}
       <div className="bg-navy/5 rounded-2xl p-5 mb-5 text-center">
         <p className="text-xs text-gray-500 mb-1">Jadwal Shift Hari Ini</p>
@@ -64,132 +49,67 @@ export default function HomePage({ employees, selectedEmployee, onSelectEmployee
         </p>
       </div>
 
-      {/* Clock Button */}
-      {selectedEmployee && (
-        <ClockButton status={clockStatus} loading={statusLoading} />
-      )}
-
       {/* Today's Status */}
       <div className="mt-5">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">Status Hari Ini</h3>
-        {!selectedEmployee ? (
-          <div className="bg-gray-50 rounded-xl p-4 text-center text-gray-400 text-sm">
-            Pilih nama karyawan untuk melihat status
-          </div>
-        ) : statusLoading ? (
-          <div className="bg-gray-50 rounded-xl p-4 animate-pulse h-20" />
-        ) : (
-          <StatusCard status={clockStatus} />
-        )}
+        <div className="bg-gray-50 rounded-xl p-4 text-center text-gray-400 text-sm">
+          Pilih nama karyawan untuk masuk ke dashboard staff
+        </div>
       </div>
+        </>
+      )}
     </div>
   )
 }
 
-function ClockButton({ status, loading }) {
-  const navigate = useNavigate()
+function PinGate({ employee, onVerified }) {
+  const [pin, setPin] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [error, setError] = useState(null)
 
-  if (loading) {
-    return <div className="w-full h-14 bg-gray-200 rounded-2xl animate-pulse mb-1" />
-  }
-
-  const s = status?.status
-  const isClockIn = s === 'belum_masuk'
-  const isDone = s === 'sudah_keluar'
-
-  if (isDone) {
-    return (
-      <div className="w-full bg-gray-100 text-gray-400 py-4 rounded-2xl text-center text-lg font-semibold">
-        Sudah Selesai Hari Ini
-      </div>
-    )
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (pin.length < 4 || checking) return
+    setChecking(true)
+    setError(null)
+    const res = await verifyEmployeePin(employee.id, pin)
+    setChecking(false)
+    if (res.error) {
+      setError(res.error)
+      return
+    }
+    if (!res.verified) {
+      setError('PIN salah')
+      return
+    }
+    onVerified(employee, pin)
   }
 
   return (
-    <button
-      onClick={() => navigate(isClockIn ? '/clock-in' : '/clock-out')}
-      className={`w-full py-4 rounded-2xl text-lg font-semibold transition-colors ${
-        isClockIn
-          ? 'bg-success text-white active:bg-green-600'
-          : 'bg-danger text-white active:bg-red-600'
-      }`}
-    >
-      {isClockIn ? 'Clock In' : 'Clock Out'}
-    </button>
+    <form onSubmit={handleSubmit} className="bg-navy/5 rounded-2xl p-5 mb-5">
+      <h2 className="text-sm font-semibold text-gray-800 mb-1">Masukkan PIN</h2>
+      <p className="text-xs text-gray-500 mb-4">Verifikasi PIN untuk membuka dashboard dan akses clock in/out.</p>
+      <input
+        type="password"
+        inputMode="numeric"
+        maxLength={6}
+        placeholder="PIN 4-6 digit"
+        value={pin}
+        onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-center tracking-widest focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy/30 bg-white"
+      />
+      {error && <p className="text-xs text-danger mt-2">{error}</p>}
+      <button
+        type="submit"
+        disabled={pin.length < 4 || checking}
+        className={`w-full mt-4 py-3 rounded-xl text-sm font-semibold ${
+          pin.length >= 4 && !checking
+            ? 'bg-navy text-white active:bg-navy-dark'
+            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+        }`}
+      >
+        {checking ? 'Memeriksa...' : 'Buka Dashboard'}
+      </button>
+    </form>
   )
-}
-
-function StatusCard({ status }) {
-  const s = status?.status
-
-  if (s === 'belum_masuk') {
-    return (
-      <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-center gap-3">
-        <div className="w-3 h-3 bg-warning rounded-full shrink-0" />
-        <p className="text-sm text-gray-700">Belum absen hari ini</p>
-      </div>
-    )
-  }
-
-  if (s === 'sudah_masuk') {
-    const time = extractTime(status.jam_masuk)
-    return (
-      <div className="bg-accent/10 border border-accent/30 rounded-xl p-4">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-3 h-3 bg-accent rounded-full shrink-0" />
-          <p className="text-sm font-medium text-gray-700">Sudah Clock In</p>
-        </div>
-        <div className="ml-6 flex gap-6 text-xs text-gray-500">
-          <div>
-            <p className="text-gray-400">Masuk</p>
-            <p className="font-semibold text-gray-700">{time}</p>
-          </div>
-          <div>
-            <p className="text-gray-400">Keluar</p>
-            <p className="font-semibold text-gray-400">-</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (s === 'sudah_keluar') {
-    const masuk = extractTime(status.jam_masuk)
-    const keluar = extractTime(status.jam_keluar)
-    return (
-      <div className="bg-success/10 border border-success/30 rounded-xl p-4">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-3 h-3 bg-success rounded-full shrink-0" />
-          <p className="text-sm font-medium text-gray-700">Sudah Selesai</p>
-        </div>
-        <div className="ml-6 flex gap-6 text-xs text-gray-500">
-          <div>
-            <p className="text-gray-400">Masuk</p>
-            <p className="font-semibold text-gray-700">{masuk}</p>
-          </div>
-          <div>
-            <p className="text-gray-400">Keluar</p>
-            <p className="font-semibold text-gray-700">{keluar}</p>
-          </div>
-          {status.durasi_jam && (
-            <div>
-              <p className="text-gray-400">Durasi</p>
-              <p className="font-semibold text-gray-700">{status.durasi_jam} jam</p>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  return null
-}
-
-function extractTime(dateTimeStr) {
-  if (!dateTimeStr) return '-'
-  const parts = String(dateTimeStr).split(' ')
-  if (parts.length >= 2) {
-    return parts[1].substring(0, 5) // HH:mm
-  }
-  return dateTimeStr
 }

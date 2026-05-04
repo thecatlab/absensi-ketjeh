@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import Camera from '../components/Camera';
 import LocationStatus from '../components/LocationStatus';
 import { getCurrentPosition } from '../utils/gps';
-import { getNowTimeString } from '../utils/dateHelpers';
-import { clockIn, clockOut } from '../api/client';
+import { clockIn, clockOut, verifyEmployeePin } from '../api/client';
 import { CONFIG } from '../config';
 
-export default function ClockPage({ employee, mode }) {
+export default function ClockPage({ employee, mode, verifiedPin, onClockInSuccess, onClockOutSuccess }) {
   const navigate = useNavigate();
   const isClockIn = mode === 'in';
 
@@ -26,7 +25,8 @@ export default function ClockPage({ employee, mode }) {
       .catch(err => setLocation({ error: err.message, lat: null, lng: null }));
   }, []);
 
-  const canSubmit = photo && pin.length >= 4 && !submitting;
+  const activePin = String(verifiedPin || pin);
+  const canSubmit = photo && employee?.id && activePin.length >= 4 && !submitting;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -34,13 +34,22 @@ export default function ClockPage({ employee, mode }) {
     setSubmitting(true);
     setError(null);
 
+    if (!verifiedPin) {
+      const verification = await verifyEmployeePin(employee.id, activePin);
+      if (verification.error || !verification.verified) {
+        setError(verification.error || 'PIN salah');
+        setSubmitting(false);
+        return;
+      }
+    }
+
     const data = {
       karyawan_id: employee.id,
       nama: employee.nama,
       lat: location?.lat || null,
       lng: location?.lng || null,
       foto_base64: photo,
-      pin,
+      pin: activePin,
       catatan: catatan || undefined,
     };
 
@@ -50,9 +59,10 @@ export default function ClockPage({ employee, mode }) {
         setError(res.error);
         setSubmitting(false);
       } else {
+        if (isClockIn) onClockInSuccess?.(employee, activePin);
         setResult(res);
       }
-    } catch (err) {
+    } catch {
       setError('Gagal mengirim data. Coba lagi.');
       setSubmitting(false);
     }
@@ -65,7 +75,14 @@ export default function ClockPage({ employee, mode }) {
         isClockIn={isClockIn}
         employee={employee}
         result={result}
-        onDone={() => navigate('/')}
+        onDone={() => {
+          if (isClockIn) {
+            navigate('/');
+          } else {
+            onClockOutSuccess?.();
+            navigate('/');
+          }
+        }}
       />
     );
   }
@@ -107,19 +124,20 @@ export default function ClockPage({ employee, mode }) {
         <LocationStatus location={location} />
       </div>
 
-      {/* PIN */}
-      <div className="mb-4">
-        <label className="text-xs font-medium text-gray-500 mb-2 block">PIN Verifikasi</label>
-        <input
-          type="password"
-          inputMode="numeric"
-          maxLength={6}
-          placeholder="Masukkan PIN (4-6 digit)"
-          value={pin}
-          onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-          className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-center tracking-widest focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy/30"
-        />
-      </div>
+      {!verifiedPin && (
+        <div className="mb-4">
+          <label className="text-xs font-medium text-gray-500 mb-2 block">PIN Verifikasi</label>
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="Masukkan PIN (4-6 digit)"
+            value={pin}
+            onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-center tracking-widest focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy/30"
+          />
+        </div>
+      )}
 
       {/* Notes (optional) */}
       <div className="mb-5">

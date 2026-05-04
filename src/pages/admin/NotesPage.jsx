@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getAdminNotes, addAdminNote, deleteAdminNote } from '../../api/client';
 
 export default function NotesPage({ adminPassword, role }) {
@@ -8,7 +8,17 @@ export default function NotesPage({ adminPassword, role }) {
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
 
-  useEffect(() => { loadNotes(); }, []);
+  const loadNotes = useCallback(async () => {
+    setLoading(true);
+    const res = await getAdminNotes();
+    if (res.success) setNotes(res.data);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(loadNotes, 0);
+    return () => clearTimeout(timer);
+  }, [loadNotes]);
 
   useEffect(() => {
     // Scroll to bottom when notes change
@@ -16,13 +26,6 @@ export default function NotesPage({ adminPassword, role }) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [notes]);
-
-  async function loadNotes() {
-    setLoading(true);
-    const res = await getAdminNotes();
-    if (res.success) setNotes(res.data);
-    setLoading(false);
-  }
 
   async function handleSend(e) {
     e.preventDefault();

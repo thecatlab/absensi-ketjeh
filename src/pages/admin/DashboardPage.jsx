@@ -1,21 +1,22 @@
-import { useState, useEffect } from 'react';
-import StatCard from '../../components/StatCard';
+import { useCallback, useEffect, useState } from 'react';
 import { getDashboardData } from '../../api/client';
 
-export default function DashboardPage() {
+export default function DashboardPage({ role }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedRecord, setSelectedRecord] = useState(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  function loadData() {
+  const loadData = useCallback(() => {
     setLoading(true);
     getDashboardData()
       .then(res => { if (res.success) setData(res); })
       .finally(() => setLoading(false));
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(loadData, 0);
+    return () => clearTimeout(timer);
+  }, [loadData]);
 
   const todayStr = new Date().toLocaleDateString('id-ID', {
     timeZone: 'Asia/Jakarta',
@@ -27,18 +28,15 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />)}
-        </div>
-        <div className="space-y-2">
-          {[1, 2, 3].map(i => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
-        </div>
+      <div className="space-y-2">
+        {[1, 2, 3].map(i => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
       </div>
     );
   }
 
-  const { summary, records } = data || { summary: {}, records: [] };
+  const { records = [] } = data || { records: [] };
+  const sortedRecords = [...records].sort((a, b) => extractTime(b.jam_masuk).localeCompare(extractTime(a.jam_masuk)));
+  const canViewAttendanceDetails = ['admin', 'owner'].includes(String(role || '').toLowerCase());
 
   return (
     <div>
@@ -48,45 +46,49 @@ export default function DashboardPage() {
         <button onClick={loadData} className="text-xs text-navy font-medium">Refresh</button>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <StatCard label="Total Karyawan" value={summary.totalKaryawan || 0} color="blue" />
-        <StatCard label="Hadir" value={summary.hadir || 0} color="green" />
-        <StatCard label="Terlambat" value={summary.terlambat || 0} color="yellow" />
-        <StatCard label="Belum Hadir" value={summary.belumHadir || 0} color="red" />
-      </div>
-
       {/* Attendance Table */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-700">Absensi Hari Ini</h3>
-          <span className="text-xs text-gray-400">{records.length} record</span>
+          <span className="text-xs text-gray-400">{sortedRecords.length} record</span>
         </div>
 
-        {records.length === 0 ? (
+        {sortedRecords.length === 0 ? (
           <div className="bg-gray-50 rounded-xl p-4 text-center text-gray-400 text-sm">
             Belum ada yang absen hari ini
           </div>
         ) : (
           <div className="space-y-2">
-            {records.map(record => (
-              <AttendanceRow key={record.id} record={record} />
+            {sortedRecords.map(record => (
+              <AttendanceRow
+                key={record.id}
+                record={record}
+                canViewDetails={canViewAttendanceDetails}
+                onSelect={() => setSelectedRecord(record)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {selectedRecord && canViewAttendanceDetails && (
+        <AttendanceDetailModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
+      )}
     </div>
   );
 }
 
-function AttendanceRow({ record }) {
+function AttendanceRow({ record, canViewDetails = false, onSelect }) {
   const masuk = extractTime(record.jam_masuk);
   const keluar = extractTime(record.jam_keluar);
-  const isLate = masuk > '08:15';
+  const timingStatus = getTimingStatus(masuk);
   const isOffSite = record.status_lokasi_masuk && record.status_lokasi_masuk !== 'On-site';
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
+    <div
+      onClick={canViewDetails ? onSelect : undefined}
+      className={`bg-white border border-gray-100 rounded-xl px-4 py-3 ${canViewDetails ? 'cursor-pointer active:bg-gray-50' : ''}`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-navy/10 rounded-full flex items-center justify-center text-navy font-bold text-xs shrink-0">
@@ -98,7 +100,12 @@ function AttendanceRow({ record }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isLate && (
+          {timingStatus === 'toleransi' && (
+            <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full font-medium">
+              Toleransi
+            </span>
+          )}
+          {timingStatus === 'terlambat' && (
             <span className="text-[10px] bg-warning/10 text-warning px-2 py-0.5 rounded-full font-medium">
               Terlambat
             </span>
@@ -130,8 +137,90 @@ function AttendanceRow({ record }) {
   );
 }
 
+function AttendanceDetailModal({ record, onClose }) {
+  const masuk = extractTime(record.jam_masuk);
+  const keluar = extractTime(record.jam_keluar);
+  const timingStatus = getTimingStatus(masuk);
+  const clockInPhoto = getRecordImage(record, 'masuk');
+  const clockOutPhoto = getRecordImage(record, 'keluar');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-5 py-6">
+      <div className="w-full max-w-[440px] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-base font-bold text-gray-800">{record.nama}</h3>
+            <p className="text-xs text-gray-400">{record.jabatan || '-'}</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-sm font-semibold text-gray-400">Tutup</button>
+        </div>
+
+        <div className="space-y-2">
+          <DetailRow label="Masuk" value={masuk} />
+          <DetailRow label="Keluar" value={keluar} />
+          <DetailRow label="Status Keterlambatan" value={getTimingStatusText(timingStatus)} />
+          <DetailRow label="Notes" value={getRecordNote(record)} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <AttendancePhoto label="Clock-in image" url={clockInPhoto} />
+          <AttendancePhoto label="Clock-out image" url={clockOutPhoto} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
+      <span className="text-xs text-gray-400">{label}</span>
+      <span className="text-sm font-medium text-gray-700 text-right">{value || '-'}</span>
+    </div>
+  );
+}
+
+function AttendancePhoto({ label, url }) {
+  return (
+    <div>
+      <p className="mb-1 text-xs font-medium text-gray-500">{label}</p>
+      {url ? (
+        <img src={url} alt={label} className="aspect-square w-full rounded-xl object-cover bg-gray-50" />
+      ) : (
+        <div className="aspect-square w-full rounded-xl bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+          Belum ada foto
+        </div>
+      )}
+    </div>
+  );
+}
+
 function extractTime(dtStr) {
   if (!dtStr) return '-';
   const parts = String(dtStr).split(' ');
   return parts.length >= 2 ? parts[1].substring(0, 5) : dtStr;
+}
+
+function getTimingStatus(time) {
+  if (!time || time === '-') return null;
+  if (time >= '08:00' && time <= '08:15') return 'toleransi';
+  if (time > '08:15') return 'terlambat';
+  return null;
+}
+
+function getTimingStatusText(status) {
+  if (status === 'toleransi') return 'Toleransi';
+  if (status === 'terlambat') return 'Terlambat';
+  return 'Tepat waktu';
+}
+
+function getRecordNote(record) {
+  return record.catatan || record.notes || record.note || record.keterangan || '-';
+}
+
+function getRecordImage(record, type) {
+  const keys = type === 'masuk'
+    ? ['foto_masuk_url', 'foto_masuk', 'clock_in_image', 'clock_in_photo', 'selfie_masuk', 'gambar_masuk']
+    : ['foto_keluar_url', 'foto_keluar', 'clock_out_image', 'clock_out_photo', 'selfie_keluar', 'gambar_keluar'];
+  return keys.map(key => record[key]).find(Boolean);
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import StatCard from '../../components/StatCard';
 import Modal from '../../components/Modal';
 import PhotoDisplay from '../../components/PhotoDisplay';
@@ -12,9 +12,17 @@ export default function ReportsPage({ adminPassword }) {
   const [karyawanId, setKaryawanId] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [activeQuick, setActiveQuick] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState(null);
+
+  const loadReport = useCallback(() => {
+    setLoading(true);
+    getReport(dari, sampai, karyawanId || null, adminPassword)
+      .then(res => { if (res.success) setData(res); })
+      .finally(() => setLoading(false));
+  }, [adminPassword, dari, karyawanId, sampai]);
 
   useEffect(() => {
     getAllEmployees().then(res => { if (res.success) setEmployees(res.data); });
@@ -22,18 +30,13 @@ export default function ReportsPage({ adminPassword }) {
   }, []);
 
   useEffect(() => {
-    loadReport();
-  }, [dari, sampai, karyawanId]);
-
-  function loadReport() {
-    setLoading(true);
-    getReport(dari, sampai, karyawanId || null, adminPassword)
-      .then(res => { if (res.success) setData(res); })
-      .finally(() => setLoading(false));
-  }
+    const timer = setTimeout(loadReport, 0);
+    return () => clearTimeout(timer);
+  }, [loadReport]);
 
   function handleExport() {
-    if (!data?.data?.length) return;
+    const exportRecords = getFilteredRecords(data?.data || [], statusFilter, settings);
+    if (!exportRecords.length) return;
 
     const shiftMulai = settings?.shift_mulai || '08:00';
     const shiftSelesai = settings?.shift_selesai || '17:00';
@@ -54,7 +57,7 @@ export default function ReportsPage({ adminPassword }) {
 
     const batasTerlambat = addMinutes(shiftMulai, toleransi);
 
-    const rows = data.data.map(r => {
+    const rows = exportRecords.map(r => {
       const masuk = extractTime(r.jam_masuk);
       const keluar = extractTime(r.jam_keluar);
 
@@ -86,7 +89,9 @@ export default function ReportsPage({ adminPassword }) {
   }
 
   const summary = data?.summary || {};
-  const records = data?.data || [];
+  const allRecords = data?.data || [];
+  const records = getFilteredRecords(allRecords, statusFilter, settings);
+  const visibleSummary = getVisibleSummary(records, settings);
 
   // Group by date for display
   const grouped = {};
@@ -150,6 +155,29 @@ export default function ReportsPage({ adminPassword }) {
             ))}
           </select>
         </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">Filter keterlambatan</label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { value: 'all', label: 'Semua' },
+              { value: 'late_any', label: 'Telat & Terlambat' },
+              { value: 'late_only', label: 'Terlambat' },
+            ].map(option => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setStatusFilter(option.value)}
+                className={`px-2 py-2 rounded-lg text-xs font-medium ${
+                  statusFilter === option.value
+                    ? 'bg-navy text-white'
+                    : 'bg-gray-100 text-gray-500 active:bg-gray-200'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -164,9 +192,9 @@ export default function ReportsPage({ adminPassword }) {
           {/* Summary Stats */}
           <div className="grid grid-cols-2 gap-3 mb-5 print:grid-cols-4">
             <StatCard label="Hari Kerja" value={summary.total_hari || 0} color="blue" />
-            <StatCard label="Total Hadir" value={summary.total_hadir || 0} color="green" />
-            <StatCard label="Terlambat" value={summary.total_terlambat || 0} color="yellow" />
-            <StatCard label="Rata-rata Durasi" value={`${summary.rata_rata_durasi || 0}j`} color="gray" />
+            <StatCard label="Total Hadir" value={visibleSummary.total_hadir || 0} color="green" />
+            <StatCard label="Terlambat" value={visibleSummary.total_terlambat || 0} color="yellow" />
+            <StatCard label="Rata-rata Durasi" value={`${visibleSummary.rata_rata_durasi || 0}j`} color="gray" />
           </div>
 
           {/* Export Buttons */}
@@ -205,7 +233,7 @@ export default function ReportsPage({ adminPassword }) {
           ) : (
             <div className="space-y-4">
               {dates.map(date => (
-                <DateGroup key={date} date={date} records={grouped[date]} onViewRecord={setSelectedRecord} />
+                <DateGroup key={date} date={date} records={grouped[date]} settings={settings} onViewRecord={setSelectedRecord} />
               ))}
             </div>
           )}
@@ -285,7 +313,7 @@ function RecordDetail({ record }) {
   );
 }
 
-function DateGroup({ date, records, onViewRecord }) {
+function DateGroup({ date, records, settings, onViewRecord }) {
   const d = new Date(date + 'T00:00:00+07:00');
   const label = d.toLocaleDateString('id-ID', {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta',
@@ -298,29 +326,30 @@ function DateGroup({ date, records, onViewRecord }) {
         <span className="text-[10px] text-gray-400">{records.length} orang</span>
       </div>
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-        <table className="w-full text-xs">
+        <table className="w-full table-fixed text-xs">
           <thead>
             <tr className="bg-gray-50 text-gray-400 text-left">
-              <th className="py-2 px-3 font-medium">Nama</th>
-              <th className="py-2 px-3 font-medium">Masuk</th>
-              <th className="py-2 px-3 font-medium">Keluar</th>
-              <th className="py-2 px-3 font-medium">Durasi</th>
-              <th className="py-2 px-3 font-medium">Lok</th>
+              <th className="w-[36%] py-2 px-3 font-medium">Nama</th>
+              <th className="w-[17%] py-2 px-3 font-medium">Masuk</th>
+              <th className="w-[17%] py-2 px-3 font-medium">Keluar</th>
+              <th className="w-[18%] py-2 px-3 font-medium">Durasi</th>
+              <th className="w-[12%] py-2 px-3 font-medium text-center">Lok</th>
             </tr>
           </thead>
           <tbody>
             {records.map((r, i) => {
               const masuk = extractTime(r.jam_masuk);
               const keluar = extractTime(r.jam_keluar);
-              const isLate = masuk > '08:15';
+              const arrivalStatus = getArrivalStatus(r, settings);
+              const isLate = arrivalStatus === 'late' || arrivalStatus === 'tolerance';
               const isOffSite = r.status_lokasi_masuk !== 'On-site';
               return (
                 <tr key={i} className="border-t border-gray-50 cursor-pointer hover:bg-gray-50 active:bg-gray-100" onClick={() => onViewRecord(r)}>
-                  <td className="py-2 px-3 font-medium text-gray-700">{r.nama}</td>
+                  <td className="py-2 px-3 font-medium text-gray-700 truncate">{r.nama}</td>
                   <td className={`py-2 px-3 ${isLate ? 'text-warning font-semibold' : 'text-success'}`}>{masuk}</td>
                   <td className="py-2 px-3 text-gray-600">{keluar}</td>
                   <td className="py-2 px-3 text-gray-600">{r.durasi_jam}j</td>
-                  <td className="py-2 px-3">
+                  <td className="py-2 px-3 text-center">
                     <span className={`inline-block w-2 h-2 rounded-full ${isOffSite ? 'bg-warning' : 'bg-success'}`} />
                   </td>
                 </tr>
@@ -331,6 +360,39 @@ function DateGroup({ date, records, onViewRecord }) {
       </div>
     </div>
   );
+}
+
+function getFilteredRecords(records, statusFilter, settings) {
+  if (statusFilter === 'all') return records;
+  return records.filter(record => {
+    const status = getArrivalStatus(record, settings);
+    if (statusFilter === 'late_any') return status === 'tolerance' || status === 'late';
+    if (statusFilter === 'late_only') return status === 'late';
+    return true;
+  });
+}
+
+function getVisibleSummary(records, settings) {
+  if (!records.length) {
+    return { total_hadir: 0, total_terlambat: 0, rata_rata_durasi: 0 };
+  }
+  const totalDurasi = records.reduce((sum, record) => sum + (parseFloat(record.durasi_jam) || 0), 0);
+  return {
+    total_hadir: records.length,
+    total_terlambat: records.filter(record => getArrivalStatus(record, settings) === 'late').length,
+    rata_rata_durasi: (totalDurasi / records.length).toFixed(2),
+  };
+}
+
+function getArrivalStatus(record, settings) {
+  const masuk = extractTime(record.jam_masuk);
+  if (!masuk || masuk === '-') return 'none';
+  const shiftMulai = settings?.shift_mulai || '08:00';
+  const toleransi = parseInt(settings?.toleransi_terlambat_menit) || 15;
+  const batasToleransi = addMinutes(shiftMulai, toleransi);
+  if (masuk <= shiftMulai) return 'on_time';
+  if (masuk <= batasToleransi) return 'tolerance';
+  return 'late';
 }
 
 function extractTime(dtStr) {
@@ -381,18 +443,11 @@ function getQuickDateOptions() {
   const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const bulanIniDari = firstOfMonth.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
 
-  // Bulan kemarin (1st to last day of previous month)
-  const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-  const bulanKemarinDari = firstOfLastMonth.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-  const bulanKemarinSampai = lastOfLastMonth.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-
   return [
     { label: 'Hari Ini', dari: todayStr, sampai: todayStr },
     { label: 'Minggu Ini', dari: mingguIniDari, sampai: todayStr },
     { label: 'Minggu Kemarin', dari: mingguLaluDari, sampai: mingguLaluSampai },
     { label: 'Bulan Ini', dari: bulanIniDari, sampai: todayStr },
-    { label: 'Bulan Kemarin', dari: bulanKemarinDari, sampai: bulanKemarinSampai },
   ];
 }
 

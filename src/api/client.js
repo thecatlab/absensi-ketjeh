@@ -7,16 +7,26 @@ import {
   MOCK_ADMIN_PASSWORD,
   MOCK_MANAGER_PASSWORD,
   MOCK_SHIFT_KHUSUS,
+  MOCK_PENGUMUMAN,
+  MOCK_RESERVASI,
+  MOCK_TODOS,
+  MOCK_BRIEFING_PHOTOS,
   generateMockHistory,
 } from './mockData';
 
 const GAS_URL = CONFIG.APPS_SCRIPT_URL;
+const CONFIGURATION_ERROR = 'Konfigurasi server belum disetel. Hubungi admin.';
 
-function useMock() {
-  return !GAS_URL;
+function shouldUseMock() {
+  return import.meta.env.DEV && !GAS_URL;
+}
+
+function configurationError() {
+  return { success: false, error: CONFIGURATION_ERROR };
 }
 
 async function gasGet(action, params = {}) {
+  if (!GAS_URL) return configurationError();
   const url = new URL(GAS_URL);
   url.searchParams.set('action', action);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -25,6 +35,7 @@ async function gasGet(action, params = {}) {
 }
 
 async function gasPost(action, body = {}) {
+  if (!GAS_URL) return configurationError();
   const res = await fetch(GAS_URL, {
     method: 'POST',
     body: JSON.stringify({ action, ...body }),
@@ -32,12 +43,31 @@ async function gasPost(action, body = {}) {
   return res.json();
 }
 
+function normalizeClockData(data) {
+  if (!data || typeof data !== 'object') {
+    return { error: 'Data absensi tidak lengkap. Verifikasi karyawan dan PIN terlebih dahulu.' };
+  }
+
+  const normalized = {
+    ...data,
+    karyawan_id: data.karyawan_id ?? data.employeeId ?? data.id,
+    nama: data.nama ?? data.name,
+    pin: data.pin == null ? '' : String(data.pin).trim(),
+  };
+
+  if (!normalized.karyawan_id || !normalized.nama || !normalized.pin) {
+    return { error: 'Data absensi tidak lengkap. Verifikasi karyawan dan PIN terlebih dahulu.' };
+  }
+
+  return { data: normalized };
+}
+
 // ============================================================
 // API Functions
 // ============================================================
 
 export async function getKaryawan() {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(300);
     return { success: true, data: MOCK_EMPLOYEES };
   }
@@ -45,7 +75,7 @@ export async function getKaryawan() {
 }
 
 export async function cekStatusHariIni(karyawanId) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(200);
     const record = MOCK_ABSENSI_TODAY.find(a => a.karyawan_id === karyawanId);
     if (!record) {
@@ -60,31 +90,37 @@ export async function cekStatusHariIni(karyawanId) {
 }
 
 export async function clockIn(data) {
-  if (useMock()) {
+  const normalized = normalizeClockData(data);
+  if (normalized.error) return { success: false, error: normalized.error };
+
+  if (shouldUseMock()) {
     await delay(1000);
-    if (data.pin !== MOCK_PIN) {
+    if (String(normalized.data.pin) !== String(MOCK_PIN)) {
       return { error: 'PIN salah' };
     }
     const now = new Date().toLocaleString('en-CA', { timeZone: 'Asia/Jakarta', hour12: false }).replace(',', '');
     return { success: true, message: 'Clock in berhasil', jam_masuk: now, status_lokasi: 'On-site (mock)' };
   }
-  return gasPost('clockIn', data);
+  return gasPost('clockIn', normalized.data);
 }
 
 export async function clockOut(data) {
-  if (useMock()) {
+  const normalized = normalizeClockData(data);
+  if (normalized.error) return { success: false, error: normalized.error };
+
+  if (shouldUseMock()) {
     await delay(1000);
-    if (data.pin !== MOCK_PIN) {
+    if (String(normalized.data.pin) !== String(MOCK_PIN)) {
       return { error: 'PIN salah' };
     }
     const now = new Date().toLocaleString('en-CA', { timeZone: 'Asia/Jakarta', hour12: false }).replace(',', '');
     return { success: true, message: 'Clock out berhasil', jam_keluar: now, durasi_jam: 8.5, status_lokasi: 'On-site (mock)' };
   }
-  return gasPost('clockOut', data);
+  return gasPost('clockOut', normalized.data);
 }
 
 export async function getAbsensiHariIni() {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(200);
     return { success: true, data: MOCK_ABSENSI_TODAY };
   }
@@ -92,7 +128,7 @@ export async function getAbsensiHariIni() {
 }
 
 export async function getAbsensi(dari, sampai, karyawanId) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(400);
     let data = karyawanId ? generateMockHistory(karyawanId) : [];
     return { success: true, data };
@@ -103,7 +139,7 @@ export async function getAbsensi(dari, sampai, karyawanId) {
 }
 
 export async function getPengaturan() {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(100);
     return { success: true, data: MOCK_SETTINGS };
   }
@@ -115,10 +151,11 @@ export async function getPengaturan() {
 // ============================================================
 
 export async function verifyEmployeePin(karyawanId, pin) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(300);
     const emp = MOCK_EMPLOYEES.find(e => e.id === karyawanId);
-    if (emp && String(emp.pin) === String(pin)) {
+    const expectedPin = emp?.pin || MOCK_PIN;
+    if (emp && String(expectedPin) === String(pin)) {
       return { success: true, verified: true };
     }
     return { success: true, verified: false };
@@ -131,7 +168,7 @@ export async function verifyEmployeePin(karyawanId, pin) {
 // ============================================================
 
 export async function adminLogin(password) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(300);
     if (password === MOCK_ADMIN_PASSWORD) {
       return { success: true, role: 'admin' };
@@ -145,7 +182,7 @@ export async function adminLogin(password) {
 }
 
 export async function getDashboardData() {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(300);
     const todayRecords = MOCK_ABSENSI_TODAY;
     const totalKaryawan = MOCK_EMPLOYEES.length;
@@ -194,7 +231,7 @@ function getMockEmployees() {
 }
 
 export async function getAllEmployees() {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(300);
     return { success: true, data: getMockEmployees() };
   }
@@ -203,7 +240,7 @@ export async function getAllEmployees() {
 }
 
 export async function addEmployee(data, password) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(500);
     const emps = getMockEmployees();
     const maxNum = emps.reduce((max, e) => {
@@ -226,7 +263,7 @@ export async function addEmployee(data, password) {
 }
 
 export async function updateEmployee(id, data, password) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(500);
     const emps = getMockEmployees();
     const idx = emps.findIndex(e => e.id === id);
@@ -243,7 +280,7 @@ export async function updateEmployee(id, data, password) {
 }
 
 export async function deactivateEmployee(id, password) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(300);
     const emps = getMockEmployees();
     const idx = emps.findIndex(e => e.id === id);
@@ -271,7 +308,7 @@ function getMockShiftKhusus() {
 }
 
 export async function updateSettings(newSettings, password) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(400);
     const s = getMockSettings();
     Object.assign(s, newSettings);
@@ -281,7 +318,7 @@ export async function updateSettings(newSettings, password) {
 }
 
 export async function getShiftKhusus() {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(300);
     return { success: true, data: getMockShiftKhusus() };
   }
@@ -289,7 +326,7 @@ export async function getShiftKhusus() {
 }
 
 export async function addShiftKhusus(data, password) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(400);
     const shifts = getMockShiftKhusus();
     // Prevent duplicate date
@@ -310,7 +347,7 @@ export async function addShiftKhusus(data, password) {
 }
 
 export async function deleteShiftKhusus(tanggal, password) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(300);
     const shifts = getMockShiftKhusus();
     const idx = shifts.findIndex(s => s.tanggal === tanggal);
@@ -344,7 +381,7 @@ function getMockNotes() {
 }
 
 export async function getAdminNotes() {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(300);
     return { success: true, data: getMockNotes() };
   }
@@ -352,7 +389,7 @@ export async function getAdminNotes() {
 }
 
 export async function addAdminNote(data, password) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(400);
     const notes = getMockNotes();
     const now = new Date();
@@ -372,7 +409,7 @@ export async function addAdminNote(data, password) {
 }
 
 export async function deleteAdminNote(noteId, password) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(300);
     const notes = getMockNotes();
     const idx = notes.findIndex(n => n.id === noteId);
@@ -384,11 +421,362 @@ export async function deleteAdminNote(noteId, password) {
 }
 
 // ============================================================
+// Employee Dashboard
+// ============================================================
+
+let _mockPengumuman = null;
+function getMockPengumuman() {
+  if (!_mockPengumuman) _mockPengumuman = [...MOCK_PENGUMUMAN];
+  return _mockPengumuman;
+}
+
+let _mockReservasi = null;
+function getMockReservasi() {
+  if (!_mockReservasi) _mockReservasi = [...MOCK_RESERVASI];
+  return _mockReservasi;
+}
+
+let _mockTodos = null;
+function getMockTodos() {
+  if (!_mockTodos) _mockTodos = [...MOCK_TODOS];
+  return _mockTodos;
+}
+
+function getTodayKey() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+}
+
+function readTodoCompletions() {
+  try {
+    return JSON.parse(localStorage.getItem('todo_completions') || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function writeTodoCompletions(data) {
+  localStorage.setItem('todo_completions', JSON.stringify(data));
+}
+
+function isActiveFlag(value) {
+  return value === true || String(value).toUpperCase() === 'TRUE';
+}
+
+function isInDateRange(item, dateKey) {
+  const start = item.tanggal_mulai || item.tanggal || dateKey;
+  const end = item.tanggal_selesai || item.tanggal || dateKey;
+  return start <= dateKey && dateKey <= end;
+}
+
+function splitTargets(value) {
+  return String(value || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function targetMatchesEmployee(item, employee) {
+  const type = String(item.target_type || 'all').toLowerCase();
+  if (type === 'all') return true;
+
+  const targets = splitTargets(item.target_value);
+  if (type === 'employee' || type === 'employees') {
+    return targets.some(target => String(target) === String(employee.id));
+  }
+  if (type === 'role' || type === 'roles') {
+    const jabatan = String(employee.jabatan || '').toLowerCase();
+    return targets.some(target => String(target).toLowerCase() === jabatan);
+  }
+  return false;
+}
+
+function todoMatchesEmployee(todo, employee) {
+  if (!isActiveFlag(todo.aktif)) return false;
+  return targetMatchesEmployee(todo, employee) && scheduleMatchesDate(todo, getTodayKey());
+}
+
+function scheduleMatchesDate(todo, dateKey) {
+  const type = String(todo.schedule_type || 'daily').toLowerCase();
+  const start = todo.tanggal_mulai || '';
+  const end = todo.tanggal_selesai || '';
+  if (start && dateKey < start) return false;
+  if (end && dateKey > end) return false;
+
+  if (type === 'once') return String(start || todo.tanggal || dateKey) === String(dateKey);
+  if (type === 'period') return true;
+
+  const date = new Date(`${dateKey}T00:00:00+07:00`);
+  if (type === 'weekdays') {
+    const day = String(date.getDay());
+    return splitTargets(todo.schedule_value).includes(day);
+  }
+
+  if (type === 'month_dates') {
+    return splitTargets(todo.schedule_value).includes(String(date.getDate()));
+  }
+
+  if (type === 'last_day_of_month') {
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    return date.getDate() === lastDay;
+  }
+
+  if (type === 'every_x_month') {
+    const interval = Math.max(parseInt(todo.schedule_interval_months) || 1, 1);
+    const anchor = start || dateKey;
+    const anchorDate = new Date(`${anchor}T00:00:00+07:00`);
+    const monthDiff = (date.getFullYear() - anchorDate.getFullYear()) * 12 + date.getMonth() - anchorDate.getMonth();
+    return monthDiff >= 0 && monthDiff % interval === 0 && date.getDate() === anchorDate.getDate();
+  }
+
+  return true;
+}
+
+function getMockClockStatus(employee) {
+  const record = MOCK_ABSENSI_TODAY.find(a => a.karyawan_id === employee.id);
+  if (!record) {
+    return { status: 'belum_masuk' };
+  }
+  if (!record.jam_keluar) {
+    return { status: 'sudah_masuk', jam_masuk: record.jam_masuk };
+  }
+  return {
+    status: 'sudah_keluar',
+    jam_masuk: record.jam_masuk,
+    jam_keluar: record.jam_keluar,
+    durasi_jam: record.durasi_jam,
+  };
+}
+
+export async function getEmployeeDashboard(employee) {
+  if (shouldUseMock()) {
+    await delay(300);
+    const todayKey = getTodayKey();
+    const completions = readTodoCompletions();
+    const completionKey = `${todayKey}:${employee.id}`;
+    const completedTodos = completions[completionKey] || {};
+    const briefing = MOCK_BRIEFING_PHOTOS.find(p => p.tanggal === todayKey && String(p.karyawan_id) === String(employee.id));
+
+    return {
+      success: true,
+      pengumuman: getMockPengumuman()
+        .filter(p => isActiveFlag(p.aktif) && isInDateRange(p, todayKey) && targetMatchesEmployee(p, employee))
+        .sort((a, b) => String(a.tanggal_mulai).localeCompare(String(b.tanggal_mulai))),
+      reservasi: getMockReservasi()
+        .filter(r => r.tanggal === todayKey)
+        .sort((a, b) => String(a.jam).localeCompare(String(b.jam))),
+      status_hari_ini: getMockClockStatus(employee),
+      todos: getMockTodos()
+        .filter(todo => todoMatchesEmployee(todo, employee))
+        .map(todo => ({ ...todo, selesai: Boolean(completedTodos[todo.id]) })),
+      briefing: briefing || null,
+    };
+  }
+  return gasGet('getEmployeeDashboard', {
+    karyawan_id: employee.id,
+    jabatan: employee.jabatan,
+    nama: employee.nama,
+  });
+}
+
+export async function setTodoStatus(todoId, employee, selesai) {
+  if (shouldUseMock()) {
+    await delay(200);
+    const todayKey = getTodayKey();
+    const completions = readTodoCompletions();
+    const completionKey = `${todayKey}:${employee.id}`;
+    completions[completionKey] = completions[completionKey] || {};
+    completions[completionKey][todoId] = Boolean(selesai);
+    writeTodoCompletions(completions);
+    return { success: true };
+  }
+  return gasPost('setTodoStatus', {
+    todo_id: todoId,
+    karyawan_id: employee.id,
+    nama: employee.nama,
+    selesai,
+  });
+}
+
+export async function uploadBriefingPhoto(employee, fotoBase64) {
+  if (shouldUseMock()) {
+    await delay(500);
+    const todayKey = getTodayKey();
+    const idx = MOCK_BRIEFING_PHOTOS.findIndex(p => p.tanggal === todayKey && String(p.karyawan_id) === String(employee.id));
+    if (idx >= 0) {
+      return { error: 'Foto briefing untuk hari ini sudah diupload' };
+    }
+    const record = {
+      id: 'B' + Date.now(),
+      tanggal: todayKey,
+      karyawan_id: employee.id,
+      nama: employee.nama,
+      foto_url: `data:image/jpeg;base64,${fotoBase64}`,
+      jam_upload: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' }),
+    };
+    MOCK_BRIEFING_PHOTOS.push(record);
+    return { success: true, data: record, message: 'Foto briefing berhasil diupload' };
+  }
+  return gasPost('uploadFotoBriefing', {
+    karyawan_id: employee.id,
+    nama: employee.nama,
+    foto_base64: fotoBase64,
+  });
+}
+
+// ============================================================
+// Dashboard Admin Data
+// ============================================================
+
+export async function getPengumumanAdmin() {
+  if (shouldUseMock()) {
+    await delay(250);
+    return { success: true, data: getMockPengumuman() };
+  }
+  return gasGet('getPengumumanAdmin');
+}
+
+export async function addPengumuman(data, password) {
+  if (shouldUseMock()) {
+    await delay(350);
+    getMockPengumuman().push({
+      id: 'P' + String(Date.now()).slice(-6),
+      ...data,
+      aktif: true,
+    });
+    return { success: true, message: 'Pengumuman berhasil ditambahkan' };
+  }
+  return gasPost('tambahPengumuman', { ...data, aktif: true, password });
+}
+
+export async function deletePengumuman(id, password) {
+  if (shouldUseMock()) {
+    await delay(250);
+    const data = getMockPengumuman();
+    const idx = data.findIndex(item => item.id === id);
+    if (idx >= 0) data.splice(idx, 1);
+    return { success: true, message: 'Pengumuman dihapus' };
+  }
+  return gasPost('hapusPengumuman', { id, password });
+}
+
+export async function updatePengumumanStatus(id, aktif, password) {
+  if (shouldUseMock()) {
+    await delay(250);
+    const data = getMockPengumuman();
+    const item = data.find(row => row.id === id);
+    if (!item) return { error: 'Pengumuman tidak ditemukan' };
+    item.aktif = Boolean(aktif);
+    return { success: true, message: 'Status pengumuman diperbarui' };
+  }
+  return gasPost('updatePengumumanStatus', { id, aktif, password });
+}
+
+export async function updatePengumuman(id, data, password) {
+  if (shouldUseMock()) {
+    await delay(350);
+    const rows = getMockPengumuman();
+    const idx = rows.findIndex(item => item.id === id);
+    if (idx === -1) return { error: 'Pengumuman tidak ditemukan' };
+    rows[idx] = { ...rows[idx], ...data, id };
+    return { success: true, message: 'Pengumuman berhasil diperbarui' };
+  }
+  return gasPost('editPengumuman', { ...data, id, password });
+}
+
+export async function getReservasiAdmin() {
+  if (shouldUseMock()) {
+    await delay(250);
+    return { success: true, data: getMockReservasi() };
+  }
+  return gasGet('getReservasiAdmin');
+}
+
+export async function addReservasi(data, password) {
+  if (shouldUseMock()) {
+    await delay(350);
+    getMockReservasi().push({
+      id: 'R' + String(Date.now()).slice(-6),
+      status: 'confirmed',
+      ...data,
+    });
+    return { success: true, message: 'Reservasi berhasil ditambahkan' };
+  }
+  return gasPost('tambahReservasi', { ...data, password });
+}
+
+export async function updateReservasi(id, data, password) {
+  if (shouldUseMock()) {
+    await delay(350);
+    const rows = getMockReservasi();
+    const idx = rows.findIndex(item => item.id === id);
+    if (idx === -1) return { error: 'Reservasi tidak ditemukan' };
+    rows[idx] = { ...rows[idx], ...data, id };
+    return { success: true, message: 'Reservasi berhasil diperbarui' };
+  }
+  return gasPost('editReservasi', { ...data, id, password });
+}
+
+export async function deleteReservasi(id, password) {
+  if (shouldUseMock()) {
+    await delay(250);
+    const data = getMockReservasi();
+    const idx = data.findIndex(item => item.id === id);
+    if (idx >= 0) data.splice(idx, 1);
+    return { success: true, message: 'Reservasi dihapus' };
+  }
+  return gasPost('hapusReservasi', { id, password });
+}
+
+export async function getTodosAdmin() {
+  if (shouldUseMock()) {
+    await delay(250);
+    return { success: true, data: getMockTodos() };
+  }
+  return gasGet('getTodosAdmin');
+}
+
+export async function addTodo(data, password) {
+  if (shouldUseMock()) {
+    await delay(350);
+    getMockTodos().push({
+      id: 'T' + String(Date.now()).slice(-6),
+      aktif: true,
+      ...data,
+    });
+    return { success: true, message: 'To-do berhasil ditambahkan' };
+  }
+  return gasPost('tambahTodo', { ...data, password });
+}
+
+export async function updateTodo(id, data, password) {
+  if (shouldUseMock()) {
+    await delay(350);
+    const rows = getMockTodos();
+    const idx = rows.findIndex(item => item.id === id);
+    if (idx === -1) return { error: 'To-do tidak ditemukan' };
+    rows[idx] = { ...rows[idx], ...data, id };
+    return { success: true, message: 'To-do berhasil diperbarui' };
+  }
+  return gasPost('editTodo', { ...data, id, password });
+}
+
+export async function deleteTodo(id, password) {
+  if (shouldUseMock()) {
+    await delay(250);
+    const data = getMockTodos();
+    const idx = data.findIndex(item => item.id === id);
+    if (idx >= 0) data.splice(idx, 1);
+    return { success: true, message: 'To-do dihapus' };
+  }
+  return gasPost('hapusTodo', { id, password });
+}
+
+// ============================================================
 // Reports
 // ============================================================
 
 export async function getReport(dari, sampai, karyawanId, password) {
-  if (useMock()) {
+  if (shouldUseMock()) {
     await delay(400);
     // Generate mock report data across the date range
     const emps = getMockEmployees();

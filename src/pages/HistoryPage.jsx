@@ -4,50 +4,52 @@ import Modal from '../components/Modal'
 import PhotoDisplay from '../components/PhotoDisplay'
 import { getAbsensi, verifyEmployeePin } from '../api/client'
 
-export default function HistoryPage({ selectedEmployee, employees, onSelectEmployee }) {
+export default function HistoryPage({ selectedEmployee, employees, onSelectEmployee, verifiedAccess, onPinVerified }) {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
-  const [pinVerified, setPinVerified] = useState(false)
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState(null)
   const [verifying, setVerifying] = useState(false)
+  const isVerified = selectedEmployee && verifiedAccess?.employeeId === selectedEmployee.id
 
-  // Reset PIN state when employee changes
-  useEffect(() => {
-    setPinVerified(false)
+  function handleSelectEmployee(employee) {
+    setHistory([])
     setPin('')
     setPinError(null)
-    setHistory([])
-  }, [selectedEmployee?.id])
+    onSelectEmployee(employee)
+  }
 
-  // Load history after PIN is verified
+  // Load history after the employee has passed the Beranda PIN gate.
   useEffect(() => {
-    if (!selectedEmployee || !pinVerified) return
-    setLoading(true)
+    if (!selectedEmployee || !isVerified) return
     const today = new Date()
     const dari = new Date(today)
     dari.setDate(dari.getDate() - 30)
     const dariStr = dari.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
     const sampaiStr = today.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
 
-    getAbsensi(dariStr, sampaiStr, selectedEmployee.id)
+    Promise.resolve()
+      .then(() => {
+        setLoading(true)
+        return getAbsensi(dariStr, sampaiStr, selectedEmployee.id)
+      })
       .then(res => {
         if (res.success) setHistory(res.data)
       })
       .finally(() => setLoading(false))
-  }, [selectedEmployee, pinVerified])
+  }, [selectedEmployee, isVerified])
 
   async function handlePinSubmit(e) {
     e.preventDefault()
-    if (!pin || !selectedEmployee) return
+    if (!selectedEmployee || pin.length < 4 || verifying) return
+
     setVerifying(true)
     setPinError(null)
-
     const res = await verifyEmployeePin(selectedEmployee.id, pin)
     setVerifying(false)
 
     if (res.success && res.verified) {
-      setPinVerified(true)
+      onPinVerified?.(selectedEmployee, pin)
     } else {
       setPinError('PIN salah. Silakan coba lagi.')
     }
@@ -57,23 +59,20 @@ export default function HistoryPage({ selectedEmployee, employees, onSelectEmplo
     <div className="px-5 py-6">
       <h2 className="text-xl font-bold text-navy mb-4">Riwayat Absensi</h2>
 
-      {!selectedEmployee && (
-        <div className="mb-5">
-          <label className="text-xs font-medium text-gray-500 mb-2 block">Pilih Karyawan</label>
-          <EmployeeSelect
-            employees={employees}
-            selected={selectedEmployee}
-            onSelect={onSelectEmployee}
-          />
-        </div>
-      )}
+      <div className="mb-5">
+        <label className="text-xs font-medium text-gray-500 mb-2 block">Pilih Karyawan</label>
+        <EmployeeSelect
+          employees={employees}
+          selected={selectedEmployee}
+          onSelect={handleSelectEmployee}
+        />
+      </div>
 
       {!selectedEmployee ? (
         <div className="bg-gray-50 rounded-xl p-6 text-center text-gray-400 text-sm">
           Pilih nama karyawan untuk melihat riwayat
         </div>
-      ) : !pinVerified ? (
-        /* PIN Gate */
+      ) : !isVerified ? (
         <div className="bg-white border border-gray-100 rounded-xl p-6">
           <div className="text-center mb-5">
             <div className="w-12 h-12 bg-navy/10 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -82,7 +81,7 @@ export default function HistoryPage({ selectedEmployee, employees, onSelectEmplo
               </svg>
             </div>
             <p className="text-sm font-semibold text-gray-700">Verifikasi PIN</p>
-            <p className="text-xs text-gray-400 mt-1">Masukkan PIN untuk melihat riwayat absensi {selectedEmployee.nama}</p>
+            <p className="text-xs text-gray-400 mt-1">Masukkan PIN untuk membuka riwayat {selectedEmployee.nama}.</p>
           </div>
 
           <form onSubmit={handlePinSubmit}>
@@ -103,14 +102,14 @@ export default function HistoryPage({ selectedEmployee, employees, onSelectEmplo
 
             <button
               type="submit"
-              disabled={!pin || verifying}
+              disabled={pin.length < 4 || verifying}
               className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors ${
-                !pin || verifying
+                pin.length < 4 || verifying
                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   : 'bg-navy text-white active:bg-navy-dark'
               }`}
             >
-              {verifying ? 'Memverifikasi...' : 'Lihat Riwayat'}
+              {verifying ? 'Memverifikasi...' : 'Buka Riwayat'}
             </button>
           </form>
         </div>

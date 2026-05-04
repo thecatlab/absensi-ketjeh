@@ -1,5 +1,5 @@
 export const CONFIG = {
-  APPS_SCRIPT_URL: import.meta.env.VITE_GAS_URL || '',
+  APPS_SCRIPT_URL: import.meta.env.VITE_APPS_SCRIPT_URL || import.meta.env.VITE_GAS_URL || '',
   APP_NAME: 'Absensi Ketjeh',
   COMPANY_NAME: 'Ketjeh Seafood & Leisure',
   TIMEZONE: 'Asia/Jakarta',

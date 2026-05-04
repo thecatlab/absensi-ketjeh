@@ -47,6 +47,22 @@ function doGet(e) {
         result = handleGetAdminNotes();
         break;
 
+      case 'getEmployeeDashboard':
+        result = handleGetEmployeeDashboard(e.parameter.karyawan_id, e.parameter.jabatan, e.parameter.nama);
+        break;
+
+      case 'getPengumumanAdmin':
+        result = handleGetPengumumanAdmin();
+        break;
+
+      case 'getReservasiAdmin':
+        result = handleGetReservasiAdmin();
+        break;
+
+      case 'getTodosAdmin':
+        result = handleGetTodosAdmin();
+        break;
+
       case 'downloadAbsensi':
         result = handleGetAbsensi(e.parameter.dari, e.parameter.sampai);
         break;
@@ -118,6 +134,46 @@ function doPost(e) {
 
       case 'verifyPin':
         result = handleVerifyPin(body);
+        break;
+
+      case 'tambahPengumuman':
+        result = handleTambahPengumuman(body);
+        break;
+
+      case 'hapusPengumuman':
+        result = handleHapusPengumuman(body);
+        break;
+
+      case 'updatePengumumanStatus':
+        result = handleUpdatePengumumanStatus(body);
+        break;
+
+      case 'tambahReservasi':
+        result = handleTambahReservasi(body);
+        break;
+
+      case 'editReservasi':
+        result = handleEditReservasi(body);
+        break;
+
+      case 'hapusReservasi':
+        result = handleHapusReservasi(body);
+        break;
+
+      case 'tambahTodo':
+        result = handleTambahTodo(body);
+        break;
+
+      case 'hapusTodo':
+        result = handleHapusTodo(body);
+        break;
+
+      case 'setTodoStatus':
+        result = handleSetTodoStatus(body);
+        break;
+
+      case 'uploadFotoBriefing':
+        result = handleUploadFotoBriefing(body);
         break;
 
       default:
