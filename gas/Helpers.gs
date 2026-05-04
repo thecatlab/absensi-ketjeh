@@ -30,7 +30,7 @@ function sheetToObjects(sheetName) {
     });
     rows.push(obj);
   }
-  return rows;
+  return sanitizePublicRows(rows);
 }
 
 /**
@@ -92,7 +92,12 @@ function getOrCreateSheet(name, headers) {
   const spreadsheet = getSpreadsheet();
   let sheet = spreadsheet.getSheetByName(name);
   if (!sheet) {
-    sheet = spreadsheet.insertSheet(name);
+    try {
+      sheet = spreadsheet.insertSheet(name);
+    } catch (err) {
+      sheet = spreadsheet.getSheetByName(name);
+      if (!sheet) throw err;
+    }
   }
   if (sheet.getLastRow() === 0 && headers && headers.length) {
     sheet.appendRow(headers);
@@ -107,7 +112,9 @@ function getOrCreateSheet(name, headers) {
 }
 
 function sheetToObjectsWithHeaders(sheetName, headers) {
-  const sheet = getOrCreateSheet(sheetName, headers);
+  const sheet = getSpreadsheet().getSheetByName(sheetName);
+  if (!sheet || sheet.getLastRow() === 0) return [];
+
   const range = sheet.getDataRange();
   const data = range.getDisplayValues();
   if (data.length < 2) return [];
@@ -121,7 +128,25 @@ function sheetToObjectsWithHeaders(sheetName, headers) {
     });
     rows.push(obj);
   }
-  return rows;
+  return sanitizePublicRows(rows);
+}
+
+function isSensitiveFieldName(key) {
+  return /pin|password|credential|secret|token/i.test(String(key || ''));
+}
+
+function sanitizePublicObject(obj) {
+  const sanitized = {};
+  Object.keys(obj || {}).forEach(key => {
+    if (!isSensitiveFieldName(key)) {
+      sanitized[key] = obj[key];
+    }
+  });
+  return sanitized;
+}
+
+function sanitizePublicRows(rows) {
+  return (rows || []).map(row => sanitizePublicObject(row));
 }
 
 // ============================================================

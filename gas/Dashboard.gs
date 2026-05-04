@@ -77,6 +77,33 @@ function handleUpdatePengumumanStatus(body) {
   return { error: 'Pengumuman tidak ditemukan' };
 }
 
+function handleEditPengumuman(body) {
+  const loginCheck = handleAdminLogin({ password: body.password });
+  if (!loginCheck.success) return { error: 'Akses ditolak.' };
+  if (!body.id) return { error: 'ID diperlukan' };
+
+  const sheet = getOrCreateSheet('Pengumuman', PENGUMUMAN_HEADERS);
+  const data = sheet.getDataRange().getDisplayValues();
+  const headers = data[0] || [];
+  const idCol = headers.indexOf('id');
+  if (idCol === -1) return { error: 'Kolom pengumuman tidak lengkap' };
+
+  const editableFields = ['judul', 'isi', 'tanggal_mulai', 'tanggal_selesai', 'aktif', 'dibuat_oleh', 'target_type', 'target_value'];
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) === String(body.id)) {
+      editableFields.forEach(function(field) {
+        if (body[field] !== undefined) {
+          const col = headers.indexOf(field);
+          if (col !== -1) sheet.getRange(i + 1, col + 1).setValue(body[field]);
+        }
+      });
+      return { success: true, message: 'Pengumuman berhasil diperbarui' };
+    }
+  }
+  return { error: 'Pengumuman tidak ditemukan' };
+}
+
 function handleGetReservasiAdmin() {
   return { success: true, data: sheetToObjectsWithHeaders('Reservasi', RESERVASI_HEADERS) };
 }
@@ -164,6 +191,33 @@ function handleTambahTodo(body) {
     body.schedule_interval_months || ''
   ]);
   return { success: true, message: 'To-do berhasil ditambahkan' };
+}
+
+function handleEditTodo(body) {
+  const loginCheck = handleAdminLogin({ password: body.password });
+  if (!loginCheck.success) return { error: 'Akses ditolak.' };
+  if (!body.id) return { error: 'ID diperlukan' };
+
+  const sheet = getOrCreateSheet('Todo', TODO_HEADERS);
+  const data = sheet.getDataRange().getDisplayValues();
+  const headers = data[0] || [];
+  const idCol = headers.indexOf('id');
+  if (idCol === -1) return { error: 'Kolom to-do tidak lengkap' };
+
+  const editableFields = ['judul', 'deskripsi', 'target_type', 'target_value', 'aktif', 'schedule_type', 'tanggal_mulai', 'tanggal_selesai', 'schedule_value', 'schedule_interval_months'];
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) === String(body.id)) {
+      editableFields.forEach(function(field) {
+        if (body[field] !== undefined) {
+          const col = headers.indexOf(field);
+          if (col !== -1) sheet.getRange(i + 1, col + 1).setValue(body[field]);
+        }
+      });
+      return { success: true, message: 'To-do berhasil diperbarui' };
+    }
+  }
+  return { error: 'To-do tidak ditemukan' };
 }
 
 function handleHapusTodo(body) {

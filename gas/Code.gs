@@ -148,6 +148,10 @@ function doPost(e) {
         result = handleUpdatePengumumanStatus(body);
         break;
 
+      case 'editPengumuman':
+        result = handleEditPengumuman(body);
+        break;
+
       case 'tambahReservasi':
         result = handleTambahReservasi(body);
         break;
@@ -162,6 +166,10 @@ function doPost(e) {
 
       case 'tambahTodo':
         result = handleTambahTodo(body);
+        break;
+
+      case 'editTodo':
+        result = handleEditTodo(body);
         break;
 
       case 'hapusTodo':

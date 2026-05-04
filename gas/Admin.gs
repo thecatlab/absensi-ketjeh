@@ -27,7 +27,7 @@ function handleAdminLogin(body) {
 
 function handleGetPengaturan() {
   const settings = getSettings();
-  return { success: true, data: settings };
+  return { success: true, data: sanitizePublicObject(settings) };
 }
 
 function handleEditPengaturan(body) {
