@@ -92,9 +92,13 @@ export default function ReportsPage({ adminPassword }) {
 
   // Group by date for display
   const grouped = {};
+  const recordOrder = new Map(records.map((record, index) => [record, index]));
   records.forEach(r => {
     if (!grouped[r.tanggal]) grouped[r.tanggal] = [];
     grouped[r.tanggal].push(r);
+  });
+  Object.values(grouped).forEach(dayRecords => {
+    dayRecords.sort((a, b) => compareRecordsByLatestInput(a, b, recordOrder));
   });
   const dates = Object.keys(grouped).sort().reverse();
 
@@ -398,6 +402,17 @@ function timeToMinutes(value) {
   if (!normalized) return null;
   const [hours, minutes] = normalized.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+function compareRecordsByLatestInput(a, b, recordOrder) {
+  const aMinutes = timeToMinutes(a.jam_masuk);
+  const bMinutes = timeToMinutes(b.jam_masuk);
+  if (aMinutes !== null && bMinutes !== null && aMinutes !== bMinutes) {
+    return bMinutes - aMinutes;
+  }
+  if (aMinutes === null && bMinutes !== null) return 1;
+  if (aMinutes !== null && bMinutes === null) return -1;
+  return (recordOrder.get(b) ?? 0) - (recordOrder.get(a) ?? 0);
 }
 
 function getRecordNote(record) {
