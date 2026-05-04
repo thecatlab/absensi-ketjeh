@@ -30,7 +30,7 @@ function sheetToObjects(sheetName) {
     });
     rows.push(obj);
   }
-  return rows;
+  return sanitizePublicRows(rows);
 }
 
 /**
@@ -86,6 +86,67 @@ function setPlainTextValue(sheet, row, col, value) {
   const cell = sheet.getRange(row, col);
   cell.setNumberFormat('@'); // @ = plain text format
   cell.setValue(String(value));
+}
+
+function getOrCreateSheet(name, headers) {
+  const spreadsheet = getSpreadsheet();
+  let sheet = spreadsheet.getSheetByName(name);
+  if (!sheet) {
+    try {
+      sheet = spreadsheet.insertSheet(name);
+    } catch (err) {
+      sheet = spreadsheet.getSheetByName(name);
+      if (!sheet) throw err;
+    }
+  }
+  if (sheet.getLastRow() === 0 && headers && headers.length) {
+    sheet.appendRow(headers);
+  } else if (headers && headers.length) {
+    const currentHeaders = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getDisplayValues()[0];
+    const missingHeaders = headers.filter(header => currentHeaders.indexOf(header) === -1);
+    if (missingHeaders.length) {
+      sheet.getRange(1, currentHeaders.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+    }
+  }
+  return sheet;
+}
+
+function sheetToObjectsWithHeaders(sheetName, headers) {
+  const sheet = getSpreadsheet().getSheetByName(sheetName);
+  if (!sheet || sheet.getLastRow() === 0) return [];
+
+  const range = sheet.getDataRange();
+  const data = range.getDisplayValues();
+  if (data.length < 2) return [];
+
+  const sheetHeaders = data[0];
+  const rows = [];
+  for (let i = 1; i < data.length; i++) {
+    const obj = {};
+    sheetHeaders.forEach((h, j) => {
+      obj[h] = data[i][j];
+    });
+    rows.push(obj);
+  }
+  return sanitizePublicRows(rows);
+}
+
+function isSensitiveFieldName(key) {
+  return /pin|password|credential|secret|token/i.test(String(key || ''));
+}
+
+function sanitizePublicObject(obj) {
+  const sanitized = {};
+  Object.keys(obj || {}).forEach(key => {
+    if (!isSensitiveFieldName(key)) {
+      sanitized[key] = obj[key];
+    }
+  });
+  return sanitized;
+}
+
+function sanitizePublicRows(rows) {
+  return (rows || []).map(row => sanitizePublicObject(row));
 }
 
 // ============================================================
@@ -171,6 +232,28 @@ function uploadFoto(base64String, fileName) {
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
   // Return direct image URL (not Drive page URL)
+  return 'https://lh3.googleusercontent.com/d/' + file.getId();
+}
+
+function uploadFotoToFolder(base64String, fileName, folderId) {
+  if (!folderId) {
+    throw new Error('Folder foto belum dikonfigurasi');
+  }
+
+  const rootFolder = DriveApp.getFolderById(folderId);
+  const today = getTodayString();
+  let dateFolder;
+  const folders = rootFolder.getFoldersByName(today);
+  if (folders.hasNext()) {
+    dateFolder = folders.next();
+  } else {
+    dateFolder = rootFolder.createFolder(today);
+  }
+
+  const decoded = Utilities.base64Decode(base64String);
+  const blob = Utilities.newBlob(decoded, 'image/jpeg', fileName + '.jpg');
+  const file = dateFolder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return 'https://lh3.googleusercontent.com/d/' + file.getId();
 }
 

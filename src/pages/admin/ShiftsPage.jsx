@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Modal from '../../components/Modal';
 import { getPengaturan, updateSettings, getShiftKhusus, addShiftKhusus, deleteShiftKhusus } from '../../api/client';
 
@@ -9,9 +9,7 @@ export default function ShiftsPage({ adminPassword }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [message, setMessage] = useState(null);
 
-  useEffect(() => { loadAll(); }, []);
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     const [settingsRes, shiftsRes] = await Promise.all([
       getPengaturan(),
@@ -20,7 +18,12 @@ export default function ShiftsPage({ adminPassword }) {
     if (settingsRes.success) setSettings(settingsRes.data);
     if (shiftsRes.success) setShifts(shiftsRes.data);
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(loadAll, 0);
+    return () => clearTimeout(timer);
+  }, [loadAll]);
 
   function showMsg(text, isError = false) {
     setMessage({ text, isError });

@@ -13,7 +13,7 @@
 function handleGetKaryawan() {
   const all = sheetToObjects('Karyawan');
   const active = all.filter(k => String(k.aktif).toUpperCase() === 'TRUE');
-  return { success: true, data: active };
+  return { success: true, data: sanitizePublicRows(active) };
 }
 
 /**

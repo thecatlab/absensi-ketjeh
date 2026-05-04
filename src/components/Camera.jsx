@@ -10,8 +10,6 @@ export default function Camera({ onCapture }) {
   const [cameraReady, setCameraReady] = useState(false);
 
   const startCamera = useCallback(async () => {
-    setError(null);
-    setPhoto(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: CONFIG.PHOTO_MAX_WIDTH }, height: { ideal: 480 } },
@@ -42,8 +40,11 @@ export default function Camera({ onCapture }) {
   }, []);
 
   useEffect(() => {
-    startCamera();
-    return stopCamera;
+    const timer = setTimeout(startCamera, 0);
+    return () => {
+      clearTimeout(timer);
+      stopCamera();
+    };
   }, [startCamera, stopCamera]);
 
   function capture() {
@@ -80,7 +81,15 @@ export default function Camera({ onCapture }) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
         <p className="text-sm text-red-600 mb-2">{error}</p>
-        <button onClick={startCamera} className="text-sm text-navy font-semibold">Coba Lagi</button>
+        <button
+          onClick={() => {
+            setError(null);
+            startCamera();
+          }}
+          className="text-sm text-navy font-semibold"
+        >
+          Coba Lagi
+        </button>
       </div>
     );
   }

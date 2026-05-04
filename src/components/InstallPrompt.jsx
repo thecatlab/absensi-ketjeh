@@ -2,16 +2,12 @@ import { useState, useEffect } from 'react';
 
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    const dismissedAt = localStorage.getItem('pwa-install-dismissed');
+    return Boolean(dismissedAt && Date.now() - parseInt(dismissedAt) < 7 * 24 * 60 * 60 * 1000);
+  });
 
   useEffect(() => {
-    // Check if already dismissed recently
-    const dismissedAt = localStorage.getItem('pwa-install-dismissed');
-    if (dismissedAt && Date.now() - parseInt(dismissedAt) < 7 * 24 * 60 * 60 * 1000) {
-      setDismissed(true);
-      return;
-    }
-
     const handler = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);

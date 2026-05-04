@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Modal from '../../components/Modal';
 import EmployeeForm from '../../components/EmployeeForm';
 import { getAllEmployees, addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
@@ -13,14 +13,17 @@ export default function EmployeesPage({ adminPassword }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
 
-  useEffect(() => { loadEmployees(); }, []);
-
-  function loadEmployees() {
+  const loadEmployees = useCallback(() => {
     setLoading(true);
     getAllEmployees()
       .then(res => { if (res.success) setEmployees(res.data); })
       .finally(() => setLoading(false));
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(loadEmployees, 0);
+    return () => clearTimeout(timer);
+  }, [loadEmployees]);
 
   function showMessage(text, isError = false) {
     setMessage({ text, isError });
