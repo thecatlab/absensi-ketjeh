@@ -385,28 +385,45 @@ function getVisibleSummary(records, settings) {
 }
 
 function getArrivalStatus(record, settings) {
-  const masuk = extractTime(record.jam_masuk);
-  if (!masuk || masuk === '-') return 'none';
-  const shiftMulai = settings?.shift_mulai || '08:00';
+  const masukMinutes = timeToMinutes(record.jam_masuk);
+  if (masukMinutes === null) return 'none';
+  const shiftMulai = normalizeTime(settings?.shift_mulai || '08:00');
   const toleransi = parseInt(settings?.toleransi_terlambat_menit) || 15;
-  const batasToleransi = addMinutes(shiftMulai, toleransi);
-  if (masuk <= shiftMulai) return 'on_time';
-  if (masuk <= batasToleransi) return 'tolerance';
+  const shiftMulaiMinutes = timeToMinutes(shiftMulai);
+  if (shiftMulaiMinutes === null) return 'none';
+  const batasToleransiMinutes = shiftMulaiMinutes + toleransi;
+  if (masukMinutes <= shiftMulaiMinutes) return 'on_time';
+  if (masukMinutes <= batasToleransiMinutes) return 'tolerance';
   return 'late';
 }
 
 function extractTime(dtStr) {
   if (!dtStr) return '-';
-  const parts = String(dtStr).split(' ');
-  return parts.length >= 2 ? parts[1].substring(0, 5) : dtStr;
+  return normalizeTime(dtStr) || '-';
+}
+
+function normalizeTime(value) {
+  const match = String(value || '').match(/(\d{1,2})[:.](\d{2})/);
+  if (!match) return '';
+  const hours = Math.min(parseInt(match[1], 10), 23);
+  const minutes = Math.min(parseInt(match[2], 10), 59);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function timeToMinutes(value) {
+  const normalized = normalizeTime(value);
+  if (!normalized) return null;
+  const [hours, minutes] = normalized.split(':').map(Number);
+  return hours * 60 + minutes;
 }
 
 /**
  * Add minutes to a "HH:MM" time string. Returns "HH:MM".
  */
 function addMinutes(timeStr, minutes) {
-  const [h, m] = timeStr.split(':').map(Number);
-  const total = h * 60 + m + minutes;
+  const start = timeToMinutes(timeStr);
+  if (start === null) return '';
+  const total = start + minutes;
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
@@ -415,9 +432,10 @@ function addMinutes(timeStr, minutes) {
  * Returns positive number if endTime > startTime.
  */
 function diffMinutes(startTime, endTime) {
-  const [h1, m1] = startTime.split(':').map(Number);
-  const [h2, m2] = endTime.split(':').map(Number);
-  return (h2 * 60 + m2) - (h1 * 60 + m1);
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+  if (start === null || end === null) return 0;
+  return end - start;
 }
 
 function getQuickDateOptions() {
