@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import StatCard from '../../components/StatCard';
 import Modal from '../../components/Modal';
 import PhotoDisplay from '../../components/PhotoDisplay';
 import { getReport, getAllEmployees, getPengaturan } from '../../api/client';
@@ -88,10 +87,8 @@ export default function ReportsPage({ adminPassword }) {
     window.print();
   }
 
-  const summary = data?.summary || {};
   const allRecords = data?.data || [];
   const records = getFilteredRecords(allRecords, statusFilter, settings);
-  const visibleSummary = getVisibleSummary(records, settings);
 
   // Group by date for display
   const grouped = {};
@@ -189,14 +186,6 @@ export default function ReportsPage({ adminPassword }) {
         </div>
       ) : (
         <>
-          {/* Summary Stats */}
-          <div className="grid grid-cols-2 gap-3 mb-5 print:grid-cols-4">
-            <StatCard label="Hari Kerja" value={summary.total_hari || 0} color="blue" />
-            <StatCard label="Total Hadir" value={visibleSummary.total_hadir || 0} color="green" />
-            <StatCard label="Terlambat" value={visibleSummary.total_terlambat || 0} color="yellow" />
-            <StatCard label="Rata-rata Durasi" value={`${visibleSummary.rata_rata_durasi || 0}j`} color="gray" />
-          </div>
-
           {/* Export Buttons */}
           <div className="flex gap-2 mb-4 print:hidden">
             <button
@@ -252,6 +241,7 @@ function RecordDetail({ record }) {
   const masuk = extractTime(record.jam_masuk);
   const keluar = extractTime(record.jam_keluar);
   const isOnSiteMasuk = record.status_lokasi_masuk === 'On-site';
+  const note = getRecordNote(record);
 
   return (
     <div className="space-y-4">
@@ -309,6 +299,11 @@ function RecordDetail({ record }) {
           Durasi kerja: <span className="font-semibold text-gray-700">{record.durasi_jam} jam</span>
         </div>
       )}
+
+      <div className="bg-gray-50 rounded-xl p-4">
+        <p className="text-xs font-medium text-gray-400 mb-1">Catatan</p>
+        <p className="text-sm text-gray-700 whitespace-pre-line">{note || 'Tidak ada catatan'}</p>
+      </div>
     </div>
   );
 }
@@ -372,18 +367,6 @@ function getFilteredRecords(records, statusFilter, settings) {
   });
 }
 
-function getVisibleSummary(records, settings) {
-  if (!records.length) {
-    return { total_hadir: 0, total_terlambat: 0, rata_rata_durasi: 0 };
-  }
-  const totalDurasi = records.reduce((sum, record) => sum + (parseFloat(record.durasi_jam) || 0), 0);
-  return {
-    total_hadir: records.length,
-    total_terlambat: records.filter(record => getArrivalStatus(record, settings) === 'late').length,
-    rata_rata_durasi: (totalDurasi / records.length).toFixed(2),
-  };
-}
-
 function getArrivalStatus(record, settings) {
   const masukMinutes = timeToMinutes(record.jam_masuk);
   if (masukMinutes === null) return 'none';
@@ -415,6 +398,10 @@ function timeToMinutes(value) {
   if (!normalized) return null;
   const [hours, minutes] = normalized.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+function getRecordNote(record) {
+  return String(record.catatan || record.notes || record.note || record.keterangan || '').trim();
 }
 
 /**
