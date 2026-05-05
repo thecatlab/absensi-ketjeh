@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getDashboardData } from '../../api/client';
+import { getDashboardData, getPengaturan } from '../../api/client';
+import { extractTime, getArrivalStatus } from '../../utils/attendanceStatus';
 
 export default function DashboardPage({ role }) {
   const [data, setData] = useState(null);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
   const loadData = useCallback(() => {
     setLoading(true);
-    getDashboardData()
-      .then(res => { if (res.success) setData(res); })
+    Promise.all([getDashboardData(), getPengaturan()])
+      .then(([dashboardRes, settingsRes]) => {
+        if (dashboardRes.success) setData(dashboardRes);
+        if (settingsRes.success) setSettings(settingsRes.data);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -63,6 +68,7 @@ export default function DashboardPage({ role }) {
               <AttendanceRow
                 key={record.id}
                 record={record}
+                settings={settings}
                 canViewDetails={canViewAttendanceDetails}
                 onSelect={() => setSelectedRecord(record)}
               />
@@ -72,16 +78,17 @@ export default function DashboardPage({ role }) {
       </div>
 
       {selectedRecord && canViewAttendanceDetails && (
-        <AttendanceDetailModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
+        <AttendanceDetailModal record={selectedRecord} settings={settings} onClose={() => setSelectedRecord(null)} />
       )}
     </div>
   );
 }
 
-function AttendanceRow({ record, canViewDetails = false, onSelect }) {
+function AttendanceRow({ record, settings, canViewDetails = false, onSelect }) {
   const masuk = extractTime(record.jam_masuk);
   const keluar = extractTime(record.jam_keluar);
-  const timingStatus = getTimingStatus(masuk);
+  const timingStatus = getArrivalStatus(record, settings);
+  const masukClass = getArrivalTimeClass(timingStatus);
   const isOffSite = record.status_lokasi_masuk && record.status_lokasi_masuk !== 'On-site';
 
   return (
@@ -100,13 +107,13 @@ function AttendanceRow({ record, canViewDetails = false, onSelect }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {timingStatus === 'toleransi' && (
-            <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full font-medium">
+          {timingStatus === 'tolerance' && (
+            <span className="text-[10px] bg-warning/10 text-warning px-2 py-0.5 rounded-full font-medium">
               Toleransi
             </span>
           )}
-          {timingStatus === 'terlambat' && (
-            <span className="text-[10px] bg-warning/10 text-warning px-2 py-0.5 rounded-full font-medium">
+          {timingStatus === 'late' && (
+            <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded-full font-medium">
               Terlambat
             </span>
           )}
@@ -120,7 +127,7 @@ function AttendanceRow({ record, canViewDetails = false, onSelect }) {
       <div className="flex gap-6 mt-2 ml-12 text-xs">
         <div>
           <span className="text-gray-400">Masuk </span>
-          <span className="font-semibold text-success">{masuk}</span>
+          <span className={`font-semibold ${masukClass}`}>{masuk}</span>
         </div>
         <div>
           <span className="text-gray-400">Keluar </span>
@@ -137,10 +144,10 @@ function AttendanceRow({ record, canViewDetails = false, onSelect }) {
   );
 }
 
-function AttendanceDetailModal({ record, onClose }) {
+function AttendanceDetailModal({ record, settings, onClose }) {
   const masuk = extractTime(record.jam_masuk);
   const keluar = extractTime(record.jam_keluar);
-  const timingStatus = getTimingStatus(masuk);
+  const timingStatus = getArrivalStatus(record, settings);
   const clockInPhoto = getRecordImage(record, 'masuk');
   const clockOutPhoto = getRecordImage(record, 'keluar');
 
@@ -195,22 +202,15 @@ function AttendancePhoto({ label, url }) {
   );
 }
 
-function extractTime(dtStr) {
-  if (!dtStr) return '-';
-  const parts = String(dtStr).split(' ');
-  return parts.length >= 2 ? parts[1].substring(0, 5) : dtStr;
-}
-
-function getTimingStatus(time) {
-  if (!time || time === '-') return null;
-  if (time >= '08:00' && time <= '08:15') return 'toleransi';
-  if (time > '08:15') return 'terlambat';
-  return null;
+function getArrivalTimeClass(status) {
+  if (status === 'tolerance') return 'text-warning';
+  if (status === 'late') return 'text-danger';
+  return 'text-success';
 }
 
 function getTimingStatusText(status) {
-  if (status === 'toleransi') return 'Toleransi';
-  if (status === 'terlambat') return 'Terlambat';
+  if (status === 'tolerance') return 'Toleransi';
+  if (status === 'late') return 'Terlambat';
   return 'Tepat waktu';
 }
 
