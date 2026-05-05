@@ -341,12 +341,12 @@ function DateGroup({ date, records, settings, onViewRecord }) {
               const masuk = extractTime(r.jam_masuk);
               const keluar = extractTime(r.jam_keluar);
               const arrivalStatus = getArrivalStatus(r, settings);
-              const isLate = arrivalStatus === 'late' || arrivalStatus === 'tolerance';
+              const masukClass = getArrivalTimeClass(arrivalStatus);
               const isOffSite = r.status_lokasi_masuk !== 'On-site';
               return (
                 <tr key={i} className="border-t border-gray-50 cursor-pointer hover:bg-gray-50 active:bg-gray-100" onClick={() => onViewRecord(r)}>
                   <td className="py-2 px-3 font-medium text-gray-700 truncate">{r.nama}</td>
-                  <td className={`py-2 px-3 ${isLate ? 'text-warning font-semibold' : 'text-success'}`}>{masuk}</td>
+                  <td className={`py-2 px-3 font-semibold ${masukClass}`}>{masuk}</td>
                   <td className="py-2 px-3 text-gray-600">{keluar}</td>
                   <td className="py-2 px-3 text-gray-600">{r.durasi_jam}j</td>
                   <td className="py-2 px-3 text-center">
@@ -360,6 +360,12 @@ function DateGroup({ date, records, settings, onViewRecord }) {
       </div>
     </div>
   );
+}
+
+function getArrivalTimeClass(status) {
+  if (status === 'tolerance') return 'text-warning';
+  if (status === 'late') return 'text-danger';
+  return 'text-success';
 }
 
 function getFilteredRecords(records, statusFilter, settings) {
