@@ -691,7 +691,7 @@ export async function getReservasiAdmin() {
   return gasGet('getReservasiAdmin');
 }
 
-export async function addReservasi(data, password) {
+export async function addReservasi(data, password, employeeAuth) {
   if (shouldUseMock()) {
     await delay(350);
     getMockReservasi().push({
@@ -701,10 +701,10 @@ export async function addReservasi(data, password) {
     });
     return { success: true, message: 'Reservasi berhasil ditambahkan' };
   }
-  return gasPost('tambahReservasi', { ...data, password });
+  return gasPost('tambahReservasi', { ...data, password, ...employeeAuth });
 }
 
-export async function updateReservasi(id, data, password) {
+export async function updateReservasi(id, data, password, employeeAuth) {
   if (shouldUseMock()) {
     await delay(350);
     const rows = getMockReservasi();
@@ -713,10 +713,10 @@ export async function updateReservasi(id, data, password) {
     rows[idx] = { ...rows[idx], ...data, id };
     return { success: true, message: 'Reservasi berhasil diperbarui' };
   }
-  return gasPost('editReservasi', { ...data, id, password });
+  return gasPost('editReservasi', { ...data, id, password, ...employeeAuth });
 }
 
-export async function deleteReservasi(id, password) {
+export async function deleteReservasi(id, password, employeeAuth) {
   if (shouldUseMock()) {
     await delay(250);
     const data = getMockReservasi();
@@ -724,7 +724,7 @@ export async function deleteReservasi(id, password) {
     if (idx >= 0) data.splice(idx, 1);
     return { success: true, message: 'Reservasi dihapus' };
   }
-  return gasPost('hapusReservasi', { id, password });
+  return gasPost('hapusReservasi', { id, password, ...employeeAuth });
 }
 
 export async function getTodosAdmin() {

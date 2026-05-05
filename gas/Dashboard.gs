@@ -109,8 +109,8 @@ function handleGetReservasiAdmin() {
 }
 
 function handleTambahReservasi(body) {
-  const loginCheck = handleAdminLogin({ password: body.password });
-  if (!loginCheck.success) return { error: 'Akses ditolak.' };
+  const accessCheck = authorizeReservasiMutation(body);
+  if (!accessCheck.success) return { error: 'Akses ditolak.' };
   if (!body.tanggal || !body.jam || !body.nama_pelanggan) return { error: 'Tanggal, jam, dan nama pelanggan diperlukan' };
 
   const sheet = getOrCreateSheet('Reservasi', RESERVASI_HEADERS);
@@ -128,8 +128,8 @@ function handleTambahReservasi(body) {
 }
 
 function handleEditReservasi(body) {
-  const loginCheck = handleAdminLogin({ password: body.password });
-  if (!loginCheck.success) return { error: 'Akses ditolak.' };
+  const accessCheck = authorizeReservasiMutation(body);
+  if (!accessCheck.success) return { error: 'Akses ditolak.' };
   if (!body.id) return { error: 'ID diperlukan' };
   if (!body.tanggal || !body.jam || !body.nama_pelanggan) return { error: 'Tanggal, jam, dan nama pelanggan diperlukan' };
 
@@ -162,9 +162,54 @@ function handleEditReservasi(body) {
 }
 
 function handleHapusReservasi(body) {
-  const loginCheck = handleAdminLogin({ password: body.password });
-  if (!loginCheck.success) return { error: 'Akses ditolak.' };
+  const accessCheck = authorizeReservasiMutation(body);
+  if (!accessCheck.success) return { error: 'Akses ditolak.' };
   return deleteById('Reservasi', RESERVASI_HEADERS, body.id, 'Reservasi dihapus');
+}
+
+function authorizeReservasiMutation(body) {
+  const loginCheck = handleAdminLogin({ password: body.password });
+  if (loginCheck.success) return { success: true };
+
+  if (!body.karyawan_id || !body.pin || !verifyPin(body.karyawan_id, body.pin)) {
+    return { success: false };
+  }
+
+  const role = getEmployeeRole(body.karyawan_id);
+  return { success: isReservationRoleAllowed(role) };
+}
+
+function getEmployeeRole(karyawanId) {
+  const sheet = getSheet('Karyawan');
+  const data = sheet.getDataRange().getDisplayValues();
+  const headers = data[0] || [];
+  const idCol = headers.indexOf('id');
+  const roleCol = headers.indexOf('jabatan');
+  const activeCol = headers.indexOf('aktif');
+  if (idCol === -1 || roleCol === -1) return '';
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) === String(karyawanId)) {
+      if (activeCol !== -1 && String(data[i][activeCol]).toUpperCase() === 'FALSE') return '';
+      return String(data[i][roleCol] || '').trim();
+    }
+  }
+  return '';
+}
+
+function isReservationRoleAllowed(role) {
+  const normalizedRole = String(role || '').trim().toLowerCase();
+  if (!normalizedRole) return false;
+
+  const settings = getSettings();
+  const configured = String(settings.reservation_manage_roles || '').trim();
+  const roles = configured
+    ? configured.split(/[,\n]/)
+    : ['Manager', 'Kasir'];
+
+  return roles.some(function(item) {
+    return String(item || '').trim().toLowerCase() === normalizedRole;
+  });
 }
 
 function handleGetTodosAdmin() {

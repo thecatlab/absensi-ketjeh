@@ -7,6 +7,9 @@ export default function ReservasiPanelPage({ selectedEmployee, verifiedAccess })
   const [settings, setSettings] = useState(null);
   const isVerified = selectedEmployee && String(verifiedAccess?.employeeId) === String(selectedEmployee.id);
   const canManage = isVerified && isRoleAllowed(selectedEmployee?.jabatan, settings, 'reservation_manage_roles', DEFAULT_RESERVATION_ROLES);
+  const employeeAuth = isVerified
+    ? { karyawan_id: selectedEmployee.id, pin: verifiedAccess.pin }
+    : null;
 
   useEffect(() => {
     getPengaturan().then(res => { if (res.success) setSettings(res.data); });
@@ -32,7 +35,7 @@ export default function ReservasiPanelPage({ selectedEmployee, verifiedAccess })
           Masukkan PIN di Beranda untuk membuka data reservasi.
         </div>
       ) : (
-        <ReservasiPage canManage={canManage} startFormOpen={false} />
+        <ReservasiPage canManage={canManage} startFormOpen={false} employeeAuth={employeeAuth} />
       )}
     </div>
   );

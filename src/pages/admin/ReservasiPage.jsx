@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { addReservasi, deleteReservasi, getReservasiAdmin, updateReservasi } from '../../api/client';
 
-export default function ReservasiPage({ adminPassword, canManage = true, startFormOpen = true }) {
+export default function ReservasiPage({ adminPassword, employeeAuth, canManage = true, startFormOpen = true }) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
   const [items, setItems] = useState([]);
   const [viewMode, setViewMode] = useState('calendar');
@@ -51,8 +51,8 @@ export default function ReservasiPage({ adminPassword, canManage = true, startFo
     if (!form.tanggal || !form.jam || !form.nama_pelanggan.trim()) return;
     setSaving(true);
     const res = editingId
-      ? await updateReservasi(editingId, form, adminPassword)
-      : await addReservasi(form, adminPassword);
+      ? await updateReservasi(editingId, form, adminPassword, employeeAuth)
+      : await addReservasi(form, adminPassword, employeeAuth);
     setSaving(false);
     if (res.error) {
       showMessage(res.error, true);
@@ -87,7 +87,7 @@ export default function ReservasiPage({ adminPassword, canManage = true, startFo
   async function handleDelete(id) {
     if (!canManage) return;
     if (!confirm('Hapus reservasi ini?')) return;
-    const res = await deleteReservasi(id, adminPassword);
+    const res = await deleteReservasi(id, adminPassword, employeeAuth);
     if (res.error) showMessage(res.error, true);
     else { showMessage('Reservasi dihapus'); loadItems(); }
   }
