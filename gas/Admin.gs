@@ -67,6 +67,23 @@ function handleEditPengaturan(body) {
 // Employee CRUD (Karyawan)
 // ============================================================
 
+function handleGetJabatan() {
+  if (!getSheet('Jabatan')) {
+    throw new Error('Daftar jabatan belum disetel. Hubungi admin.');
+  }
+  const data = sheetToObjects('Jabatan')
+    .filter(j => String(j.aktif).toUpperCase() === 'TRUE')
+    .map(j => String(j.jabatan || '').trim())
+    .filter(Boolean);
+  return { success: true, data: [...new Set(data)].sort() };
+}
+
+function handleGetAllEmployees(body) {
+  const loginCheck = handleAdminLogin({ password: body.password });
+  if (!loginCheck.success) return { error: 'Akses ditolak.' };
+  return { success: true, data: sanitizePublicRows(sheetToObjects('Karyawan')) };
+}
+
 function handleTambahKaryawan(body) {
   const { nama, jabatan, kategori, pin, password } = body;
 
@@ -78,6 +95,10 @@ function handleTambahKaryawan(body) {
 
   if (!nama || !jabatan) {
     return { error: 'Nama dan jabatan diperlukan' };
+  }
+
+  if (!handleGetJabatan().data.includes(jabatan)) {
+    return { error: 'Jabatan tidak aktif atau tidak terdaftar.' };
   }
 
   const sheet = getSheet('Karyawan');
@@ -139,9 +160,16 @@ function handleEditKaryawan(body) {
     return { error: 'Karyawan tidak ditemukan: ' + id };
   }
 
+  const currentJabatan = String(data[targetRow - 1][headers.indexOf('jabatan')]);
+  if (fields.jabatan !== undefined && fields.jabatan !== currentJabatan
+      && !handleGetJabatan().data.includes(fields.jabatan)) {
+    return { error: 'Jabatan tidak aktif atau tidak terdaftar.' };
+  }
+
   // Update specified fields
   const editableFields = ['nama', 'jabatan', 'kategori', 'aktif', 'pin'];
   for (const field of editableFields) {
+    if (field === 'pin' && fields.pin === '') continue;
     if (fields[field] !== undefined) {
       const colIndex = headers.indexOf(field);
       if (colIndex >= 0) {

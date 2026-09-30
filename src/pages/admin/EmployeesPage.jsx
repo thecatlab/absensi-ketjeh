@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import Modal from '../../components/Modal';
 import EmployeeForm from '../../components/EmployeeForm';
 import SettingsPanel from './SettingsPanel';
-import { getAllEmployees, getPengaturan, addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
+import { getAdminEmployees, getJabatan, getPengaturan, addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
 
 export default function EmployeesPage({ adminPassword }) {
   const [employees, setEmployees] = useState([]);
   const [settings, setSettings] = useState(null);
+  const [jabatanOptions, setJabatanOptions] = useState([]);
+  const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState('employees');
   const [search, setSearch] = useState('');
@@ -18,13 +20,24 @@ export default function EmployeesPage({ adminPassword }) {
 
   const loadEmployees = useCallback(() => {
     setLoading(true);
-    Promise.all([getAllEmployees(), getPengaturan()])
-      .then(([employeesRes, settingsRes]) => {
+    setLoadError(null);
+    return Promise.all([getAdminEmployees(adminPassword), getJabatan(), getPengaturan()])
+      .then(([employeesRes, jabatanRes, settingsRes]) => {
         if (employeesRes.success) setEmployees(employeesRes.data);
         if (settingsRes.success) setSettings(settingsRes.data);
+        setJabatanOptions(jabatanRes.success ? jabatanRes.data : []);
+        if (!employeesRes.success || !jabatanRes.success) {
+          setLoadError(employeesRes.error || jabatanRes.error || 'Data karyawan gagal dimuat.');
+        } else if (jabatanRes.data.length === 0) {
+          setLoadError('Belum ada jabatan aktif. Tambahkan jabatan di Google Sheets.');
+        }
+      })
+      .catch(() => {
+        setJabatanOptions([]);
+        setLoadError('Data karyawan atau jabatan gagal dimuat. Coba lagi.');
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [adminPassword]);
 
   useEffect(() => {
     const timer = setTimeout(loadEmployees, 0);
@@ -93,6 +106,12 @@ export default function EmployeesPage({ adminPassword }) {
 
   return (
     <div>
+      {loadError && (
+        <div role="alert" className="mb-4 px-4 py-2.5 rounded-xl text-sm bg-danger/10 text-danger">
+          {loadError}
+          <button onClick={loadEmployees} disabled={loading} className="ml-2 underline">Coba lagi</button>
+        </div>
+      )}
       {/* Message toast */}
       {message && (
         <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-medium ${
@@ -141,7 +160,8 @@ export default function EmployeesPage({ adminPassword }) {
         </div>
         <button
           onClick={() => { setEditTarget(null); setModalMode('add'); }}
-          className="bg-navy text-white text-xs font-semibold px-4 py-2 rounded-lg active:bg-navy-dark"
+          disabled={loading || !!loadError}
+          className="bg-navy text-white text-xs font-semibold px-4 py-2 rounded-lg active:bg-navy-dark disabled:opacity-50"
         >
           + Tambah
         </button>
@@ -201,6 +221,7 @@ export default function EmployeesPage({ adminPassword }) {
       >
         <EmployeeForm
           employee={modalMode === 'edit' ? editTarget : null}
+          jabatanOptions={jabatanOptions}
           onSubmit={modalMode === 'edit' ? handleEdit : handleAdd}
           loading={saving}
         />

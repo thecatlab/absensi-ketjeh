@@ -23,6 +23,10 @@ function doGet(e) {
         result = handleGetKaryawan();
         break;
 
+      case 'getJabatan':
+        result = handleGetJabatan();
+        break;
+
       case 'getAbsensiHariIni':
         result = handleGetAbsensiHariIni();
         break;
@@ -98,6 +102,10 @@ function doPost(e) {
 
       case 'adminLogin':
         result = handleAdminLogin(body);
+        break;
+
+      case 'getAllEmployees':
+        result = handleGetAllEmployees(body);
         break;
 
       case 'tambahKaryawan':

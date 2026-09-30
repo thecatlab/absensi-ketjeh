@@ -1,6 +1,7 @@
 import { CONFIG } from '../config';
 import {
   MOCK_EMPLOYEES,
+  MOCK_JABATAN,
   MOCK_PIN,
   MOCK_SETTINGS,
   MOCK_ABSENSI_TODAY,
@@ -230,18 +231,40 @@ function getMockEmployees() {
   return _mockEmployees;
 }
 
+export async function getJabatan() {
+  if (shouldUseMock()) {
+    await delay(100);
+    return { success: true, data: MOCK_JABATAN.filter(j => j.aktif).map(j => j.jabatan).sort() };
+  }
+  return gasGet('getJabatan');
+}
+
 export async function getAllEmployees() {
   if (shouldUseMock()) {
     await delay(300);
     return { success: true, data: getMockEmployees() };
   }
-  // Real API returns only active; for admin we need all
   return gasGet('getKaryawan');
+}
+
+export async function getAdminEmployees(password) {
+  if (shouldUseMock()) return getAllEmployees();
+  const res = await gasPost('getAllEmployees', { password });
+  if (res.success) {
+    res.data = res.data.map(employee => ({
+      ...employee,
+      aktif: String(employee.aktif).toUpperCase() === 'TRUE',
+    }));
+  }
+  return res;
 }
 
 export async function addEmployee(data, password) {
   if (shouldUseMock()) {
     await delay(500);
+    if (!MOCK_JABATAN.some(j => j.aktif && j.jabatan === data.jabatan)) {
+      return { error: 'Jabatan tidak aktif atau tidak terdaftar.' };
+    }
     const emps = getMockEmployees();
     const maxNum = emps.reduce((max, e) => {
       const n = parseInt(e.id.substring(1));
@@ -268,6 +291,10 @@ export async function updateEmployee(id, data, password) {
     const emps = getMockEmployees();
     const idx = emps.findIndex(e => e.id === id);
     if (idx === -1) return { error: 'Karyawan tidak ditemukan' };
+    if (data.jabatan !== undefined && data.jabatan !== emps[idx].jabatan
+        && !MOCK_JABATAN.some(j => j.aktif && j.jabatan === data.jabatan)) {
+      return { error: 'Jabatan tidak aktif atau tidak terdaftar.' };
+    }
     // Update fields
     if (data.nama) emps[idx].nama = data.nama;
     if (data.jabatan) emps[idx].jabatan = data.jabatan;

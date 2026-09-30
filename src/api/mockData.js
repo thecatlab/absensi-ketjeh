@@ -7,6 +7,12 @@ const nextWeekDate = new Date(todayDate);
 nextWeekDate.setDate(todayDate.getDate() + 7);
 const nextWeek = nextWeekDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
 
+export const MOCK_JABATAN = [
+  'Admin', 'Barista', 'Bartender', 'Captain Floor', 'Chef', 'Delivery',
+  'Head Chef', 'Kasir', 'Kitchen', 'Maintenance', 'Manager', 'Purchasing',
+  'Security', 'Waiter/Waitress', 'Waitress',
+].map(jabatan => ({ jabatan, aktif: true }));
+
 export const MOCK_EMPLOYEES = [
   { id: 'K001', nama: 'Andi Pratama', jabatan: 'Kasir', kategori: 'on-site', aktif: true },
   { id: 'K002', nama: 'Budi Santoso', jabatan: 'Chef', kategori: 'on-site', aktif: true },

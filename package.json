@@ -9,6 +9,7 @@
     "build": "vite build",
     "build:mock": "VITE_USE_MOCKS=true vite build",
     "lint": "eslint .",
+    "test": "node --test tests/*.test.mjs",
     "preview": "vite preview",
     "preview:mock": "VITE_USE_MOCKS=true vite build && vite preview --host 127.0.0.1"
   },
