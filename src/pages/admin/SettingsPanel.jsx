@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { updateSettings } from '../../api/client';
 import {
   DEFAULT_BRIEFING_ROLES,
@@ -7,11 +7,8 @@ import {
   splitRoleList,
 } from '../../utils/permissions';
 
-export default function SettingsPanel({ settings, employees, adminPassword, onSaved, onError }) {
-  const roleOptions = useMemo(() => {
-    const employeeRoles = employees.map(emp => emp.jabatan).filter(Boolean);
-    return [...new Set([...DEFAULT_BRIEFING_ROLES, ...DEFAULT_RESERVATION_ROLES, ...employeeRoles])];
-  }, [employees]);
+export default function SettingsPanel({ settings, jabatanOptions, adminPassword, onSaved, onError }) {
+  const roleOptions = jabatanOptions;
 
   const [form, setForm] = useState(() => buildForm(settings));
   const [saving, setSaving] = useState(false);

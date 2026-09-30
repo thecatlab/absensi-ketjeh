@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { addPengumuman, deletePengumuman, getAllEmployees, getPengumumanAdmin, updatePengumuman, updatePengumumanStatus } from '../../api/client';
-
-const COMMON_ROLES = ['Manager', 'Captain Floor', 'Kasir', 'Chef', 'Waitress', 'Purchasing', 'Security', 'Admin', 'Delivery', 'Maintenance'];
+import { useCallback, useEffect, useState } from 'react';
+import { addPengumuman, deletePengumuman, getAllEmployees, getJabatan, getPengumumanAdmin, updatePengumuman, updatePengumumanStatus } from '../../api/client';
 
 export default function PengumumanPage({ adminPassword, role }) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
   const [items, setItems] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [roleOptions, setRoleOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
@@ -32,13 +31,14 @@ export default function PengumumanPage({ adminPassword, role }) {
   useEffect(() => {
     const timer = setTimeout(loadItems, 0);
     getAllEmployees().then(res => { if (res.success) setEmployees(res.data); });
+    getJabatan()
+      .then(res => {
+        if (res.success) setRoleOptions(res.data);
+        else setMessage({ text: res.error || 'Jabatan gagal dimuat.', isError: true });
+      })
+      .catch(() => setMessage({ text: 'Jabatan gagal dimuat.', isError: true }));
     return () => clearTimeout(timer);
   }, [loadItems]);
-
-  const roleOptions = useMemo(() => {
-    const roles = employees.map(emp => emp.jabatan).filter(Boolean);
-    return [...new Set([...COMMON_ROLES, ...roles])];
-  }, [employees]);
 
   function showMessage(text, isError = false) {
     setMessage({ text, isError });

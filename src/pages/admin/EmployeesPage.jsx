@@ -145,7 +145,7 @@ export default function EmployeesPage({ adminPassword }) {
         ) : (
           <SettingsPanel
             settings={settings}
-            employees={employees}
+            jabatanOptions={jabatanOptions}
             adminPassword={adminPassword}
             onSaved={(text) => { showMessage(text); loadEmployees(); }}
             onError={(text) => showMessage(text, true)}

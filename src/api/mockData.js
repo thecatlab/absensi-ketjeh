@@ -8,22 +8,22 @@ nextWeekDate.setDate(todayDate.getDate() + 7);
 const nextWeek = nextWeekDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
 
 export const MOCK_JABATAN = [
-  'Admin', 'Barista', 'Bartender', 'Captain Floor', 'Chef', 'Delivery',
-  'Head Chef', 'Kasir', 'Kitchen', 'Maintenance', 'Manager', 'Purchasing',
-  'Security', 'Waiter/Waitress', 'Waitress',
+  'Admin', 'Barista', 'Bartender', 'Captain Floor', 'Cashier', 'Cook',
+  'Head Chef', 'Kitchen', 'Manager', 'Purchasing',
+  'Security', 'Waiter/Waitress',
 ].map(jabatan => ({ jabatan, aktif: true }));
 
 export const MOCK_EMPLOYEES = [
-  { id: 'K001', nama: 'Andi Pratama', jabatan: 'Kasir', kategori: 'on-site', aktif: true },
-  { id: 'K002', nama: 'Budi Santoso', jabatan: 'Chef', kategori: 'on-site', aktif: true },
-  { id: 'K003', nama: 'Cici Wulandari', jabatan: 'Waitress', kategori: 'on-site', aktif: true },
+  { id: 'K001', nama: 'Andi Pratama', jabatan: 'Cashier', kategori: 'on-site', aktif: true },
+  { id: 'K002', nama: 'Budi Santoso', jabatan: 'Cook', kategori: 'on-site', aktif: true },
+  { id: 'K003', nama: 'Cici Wulandari', jabatan: 'Waiter/Waitress', kategori: 'on-site', aktif: true },
   { id: 'K004', nama: 'Dewi Anggraini', jabatan: 'Purchasing', kategori: 'mobile', aktif: true },
   { id: 'K005', nama: 'Eko Prasetyo', jabatan: 'Security', kategori: 'on-site', aktif: true },
   { id: 'K006', nama: 'Fitri Handayani', jabatan: 'Admin', kategori: 'on-site', aktif: true },
-  { id: 'K007', nama: 'Gunawan Hidayat', jabatan: 'Chef', kategori: 'on-site', aktif: true },
-  { id: 'K008', nama: 'Hani Rahmawati', jabatan: 'Waitress', kategori: 'on-site', aktif: true },
-  { id: 'K009', nama: 'Irfan Maulana', jabatan: 'Delivery', kategori: 'mobile', aktif: true },
-  { id: 'K010', nama: 'Joko Widodo', jabatan: 'Maintenance', kategori: 'on-site', aktif: true },
+  { id: 'K007', nama: 'Gunawan Hidayat', jabatan: 'Cook', kategori: 'on-site', aktif: true },
+  { id: 'K008', nama: 'Hani Rahmawati', jabatan: 'Waiter/Waitress', kategori: 'on-site', aktif: true },
+  { id: 'K009', nama: 'Irfan Maulana', jabatan: 'Purchasing', kategori: 'mobile', aktif: true },
+  { id: 'K010', nama: 'Joko Widodo', jabatan: 'Kitchen', kategori: 'on-site', aktif: true },
   { id: 'K011', nama: 'Maya Lestari', jabatan: 'Manager', kategori: 'on-site', aktif: true },
   { id: 'K012', nama: 'Raka Firmansyah', jabatan: 'Captain Floor', kategori: 'on-site', aktif: true },
 ];
@@ -39,7 +39,7 @@ export const MOCK_SETTINGS = {
   geofence_lng: '110.6',
   geofence_radius_meter: '200',
   briefing_photo_roles: 'Manager,Captain Floor',
-  reservation_manage_roles: 'Manager,Kasir',
+  reservation_manage_roles: 'Manager,Cashier',
   nama_perusahaan: 'Ketjeh Seafood & Leisure',
 };
 
@@ -73,7 +73,7 @@ export const MOCK_PENGUMUMAN = [
     tanggal_mulai: today,
     tanggal_selesai: today,
     target_type: 'roles',
-    target_value: 'Waitress,Captain Floor',
+    target_value: 'Waiter/Waitress,Captain Floor',
     aktif: true,
     dibuat_oleh: 'manager',
   },
@@ -138,7 +138,7 @@ export const MOCK_TODOS = [
     judul: 'Cek kebersihan meja dan condiment',
     deskripsi: 'Pastikan setiap meja punya tisu, saus, dan sendok garpu lengkap.',
     target_type: 'role',
-    target_value: 'Waitress',
+    target_value: 'Waiter/Waitress',
     aktif: true,
   },
   {
@@ -146,7 +146,7 @@ export const MOCK_TODOS = [
     judul: 'Update stok bahan utama',
     deskripsi: 'Catat stok ikan, udang, cumi, dan bumbu utama sebelum jam 10.00.',
     target_type: 'role',
-    target_value: 'Chef',
+    target_value: 'Cook',
     aktif: true,
   },
   {
@@ -183,7 +183,7 @@ export const MOCK_ABSENSI_TODAY = [
     id: `A${today.replace(/-/g, '')}-K001-IN`,
     karyawan_id: 'K001',
     nama: 'Andi Pratama',
-    jabatan: 'Kasir',
+    jabatan: 'Cashier',
     tanggal: today,
     jam_masuk: `${today} 07:55:00`,
     jam_keluar: '',
@@ -197,7 +197,7 @@ export const MOCK_ABSENSI_TODAY = [
     id: `A${today.replace(/-/g, '')}-K002-IN`,
     karyawan_id: 'K002',
     nama: 'Budi Santoso',
-    jabatan: 'Chef',
+    jabatan: 'Cook',
     tanggal: today,
     jam_masuk: `${today} 08:12:00`,
     jam_keluar: '',
@@ -211,7 +211,7 @@ export const MOCK_ABSENSI_TODAY = [
     id: `A${today.replace(/-/g, '')}-K003-IN`,
     karyawan_id: 'K003',
     nama: 'Cici Wulandari',
-    jabatan: 'Waitress',
+    jabatan: 'Waiter/Waitress',
     tanggal: today,
     jam_masuk: `${today} 08:45:00`,
     jam_keluar: '',

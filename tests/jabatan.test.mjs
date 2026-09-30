@@ -10,7 +10,7 @@ function createBackend() {
       ['K012', 'Existing bartender', 'Bartender', 'on-site', true, '2026-04-06', '2468'],
       ['K013', 'Inactive employee', 'Retired position', 'on-site', false, '2026-04-06', '1357'],
     ],
-    Jabatan: [['jabatan', 'aktif'], ['Bartender', true], ['Kasir', true], ['Retired position', false]],
+    Jabatan: [['jabatan', 'aktif'], ['Bartender', true], ['Cashier', true], ['Retired position', false]],
     Pengaturan: [['key', 'value'], ['admin_password', 'test-admin'], ['manager_password', 'test-manager']],
     Absensi: [['id', 'karyawan_id', 'tanggal', 'durasi_jam'], ['A001', 'K012', '2026-09-29', '8']],
     AdminNotes: [['id', 'tanggal', 'jam', 'pesan'], ['N001', '2026-09-29', '09:00', 'Keep this note']],
@@ -58,7 +58,7 @@ test('catalog includes Bartender, excludes retired titles, and is independent of
   const { context, tables, writes } = createBackend();
   tables.Karyawan[1][4] = false;
   tables.Jabatan.push([' Barista ', true], ['Bartender', true], ['', true]);
-  assert.deepEqual(asPlain(context.handleGetJabatan().data), ['Barista', 'Bartender', 'Kasir']);
+  assert.deepEqual(asPlain(context.handleGetJabatan().data), ['Barista', 'Bartender', 'Cashier']);
   tables.Jabatan.push(['New position', true]);
   assert.ok(context.handleGetJabatan().data.includes('New position'));
   assert.equal(writes.length, 0);
@@ -111,8 +111,8 @@ test('changing a title validates against the current master list', () => {
   tables.Jabatan[1][1] = false;
   assert.ok(context.handleTambahKaryawan({ password: 'test-admin', nama: 'New', jabatan: 'Bartender' }).error);
   assert.ok(context.handleEditKaryawan({ password: 'test-admin', id: 'K012', jabatan: 'Bartender', nama: 'Renamed' }).success);
-  assert.ok(context.handleEditKaryawan({ password: 'test-admin', id: 'K013', jabatan: 'Kasir' }).success);
-  assert.equal(tables.Karyawan[2][2], 'Kasir');
+  assert.ok(context.handleEditKaryawan({ password: 'test-admin', id: 'K013', jabatan: 'Cashier' }).success);
+  assert.equal(tables.Karyawan[2][2], 'Cashier');
 });
 
 test('missing catalog fails safely for additions but permits unrelated edits', () => {

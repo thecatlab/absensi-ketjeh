@@ -6,14 +6,28 @@ selectable job titles. Its columns are `jabatan` and `aktif` (`TRUE`/`FALSE`).
 The seed TSV and mock catalog are development fixtures, not production catalogs.
 
 To add a position, append its exact title and `TRUE` in `Jabatan`, then reopen the
-Karyawan page. To retire a position, set its `aktif` cell to `FALSE`. Existing
+relevant page. Karyawan, To-do, Pengumuman, and permission settings all load this
+active catalog; they do not construct their own job-title lists. To retire a
+position, set its `aktif` cell to `FALSE`. Existing
 assignments remain visible and can be saved unchanged; new or changed assignments
 must use an active master title. Do not rename employee titles or merge aliases
 as part of maintaining the catalog without reviewing their effects on role-based
 reservations, tasks, and announcements.
 
-The initial master list preserves all live employee titles and the previous
-frontend choices. No existing employee or attendance rows are migrated.
+The approved catalog is Admin, Barista, Bartender, Captain Floor, Cashier, Cook,
+Head Chef, Kitchen, Manager, Purchasing, Security, and Waiter/Waitress.
+The approved normalization maps exact Chef to Cook, Kasir to Cashier, and Waitress
+to Waiter/Waitress; Head Chef stays unchanged. Delivery and Maintenance are removed
+from the catalog. K041's current assignment is Bartender.
+
+Before applying these rules, a fresh full workbook export was retained locally.
+The live change updated 14 Karyawan job-title cells and renamed the reservation
+permission from Manager,Kasir to Manager,Cashier so access stays with the same
+staff. There were no employees assigned Delivery or Maintenance. Existing task
+and announcement targets required no edits. All other Karyawan cells and all
+attendance, reservation, task, completion, announcement, briefing, shift, and
+admin-note cells/formulas were compared and preserved.
+
 The admin employee screen loads inactive employees through authenticated POST
 `getAllEmployees`; public employee selection and existing report/task consumers
 continue to use the existing active-only GET `getKaryawan` endpoint.
@@ -28,16 +42,22 @@ shows an error and disables adding employees, with a retry action.
 
 After deployment, check the live catalog and existing report, reservation,
 task, and note reads. Do not create production test records. Compare every
-pre-existing tab's cell values and formulas with the pre-change export.
+tab's cell values and formulas with the pre-change export, allowing only the
+approved catalog, employee-title, and role-setting changes.
 
 ## Release and rollback
 
 1. Export the entire workbook locally and save its checksum; also back up all
    live Apps Script source files and record the current frontend deployment and
    backend version. Retain these backups until the user confirms QA is complete.
-2. Add only the separate `Jabatan` tab with the headers and current valid titles.
-3. Deploy only `gas/Admin.gs` and `gas/Code.gs` changes to the existing Apps Script
-   project. Preserve other live source files and the endpoint URL.
+2. Maintain the `Jabatan` catalog. For an approved rename, change only relevant
+   employee job-title cells and matching role tokens in Todo/Pengumuman targets or
+   Pengaturan permissions. Preserve employee IDs, PINs, history, and unrelated
+   fields. Check for employees assigned a removed title before retiring it.
+3. Deploy `gas/Admin.gs`, `gas/Code.gs`, and the reservation fallback change in
+   `gas/Dashboard.gs` to the existing Apps Script project. Preserve any other
+   live source differences and the endpoint URL. Google authorization must be
+   completed by the account holder before deployment can finish.
 4. Verify `getJabatan` and authenticated `getAllEmployees`, then QA the frontend
    preview against that endpoint before promoting it to production.
 

@@ -205,7 +205,7 @@ function isReservationRoleAllowed(role) {
   const configured = String(settings.reservation_manage_roles || '').trim();
   const roles = configured
     ? configured.split(/[,\n]/)
-    : ['Manager', 'Kasir'];
+    : ['Manager', 'Cashier'];
 
   return roles.some(function(item) {
     return String(item || '').trim().toLowerCase() === normalizedRole;

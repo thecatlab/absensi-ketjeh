@@ -88,7 +88,7 @@ export default function EmployeeForm({ employee, jabatanOptions, onSubmit, loadi
         <p className="text-[11px] text-gray-400 mt-1.5">
           {form.kategori === 'on-site'
             ? 'Wajib absen dari area kerja (dalam radius GPS)'
-            : 'Boleh absen dari luar area kerja (misal: Purchasing, Delivery)'}
+            : 'Boleh absen dari luar area kerja (misal: Purchasing)'}
         </p>
       </div>
 

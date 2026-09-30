@@ -1,5 +1,5 @@
 export const DEFAULT_BRIEFING_ROLES = ['Manager', 'Captain Floor'];
-export const DEFAULT_RESERVATION_ROLES = ['Manager', 'Kasir'];
+export const DEFAULT_RESERVATION_ROLES = ['Manager', 'Cashier'];
 
 export function splitRoleList(value) {
   if (Array.isArray(value)) return value.map(String).map(v => v.trim()).filter(Boolean);

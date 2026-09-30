@@ -15,7 +15,7 @@ after(async () => { await server?.close(); });
 const render = props => renderToStaticMarkup(createElement(EmployeeForm, { onSubmit() {}, loading: false, ...props }));
 
 test('add form renders the supplied master titles including Bartender', () => {
-  const html = render({ jabatanOptions: ['Bartender', 'Kasir'] });
+  const html = render({ jabatanOptions: ['Bartender', 'Cashier'] });
   assert.match(html, /<option value="Bartender">Bartender<\/option>/);
   assert.doesNotMatch(html, /<option value="Chef">/);
 });

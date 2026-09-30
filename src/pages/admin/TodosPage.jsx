@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { addTodo, deleteTodo, getAllEmployees, getTodosAdmin, updateTodo } from '../../api/client';
+import { addTodo, deleteTodo, getAllEmployees, getJabatan, getTodosAdmin, updateTodo } from '../../api/client';
 
-const COMMON_ROLES = ['Manager', 'Captain Floor', 'Kasir', 'Chef', 'Waitress', 'Purchasing', 'Security', 'Admin', 'Delivery', 'Maintenance'];
 const WEEKDAY_OPTIONS = [
   { value: '1', label: 'Senin' },
   { value: '2', label: 'Selasa' },
@@ -15,6 +14,7 @@ const WEEKDAY_OPTIONS = [
 export default function TodosPage({ adminPassword }) {
   const [items, setItems] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [roleOptions, setRoleOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
@@ -44,13 +44,15 @@ export default function TodosPage({ adminPassword }) {
   useEffect(() => {
     const timer = setTimeout(loadItems, 0);
     getAllEmployees().then(res => { if (res.success) setEmployees(res.data); });
+    getJabatan()
+      .then(res => {
+        if (res.success) setRoleOptions(res.data);
+        else setMessage({ text: res.error || 'Jabatan gagal dimuat.', isError: true });
+      })
+      .catch(() => setMessage({ text: 'Jabatan gagal dimuat.', isError: true }));
     return () => clearTimeout(timer);
   }, [loadItems]);
 
-  const roleOptions = useMemo(() => {
-    const roles = employees.map(emp => emp.jabatan).filter(Boolean);
-    return [...new Set([...COMMON_ROLES, ...roles])];
-  }, [employees]);
   const filteredItems = useMemo(() => (
     roleFilter === 'all'
       ? items
