@@ -102,7 +102,8 @@ function handleCekStatusHariIni(karyawanId) {
  * Body: { karyawan_id, nama, lat, lng, foto_base64, pin }
  */
 function handleClockIn(body) {
-  const { karyawan_id, nama, lat, lng, foto_base64, pin } = body;
+  const { karyawan_id, lat, lng, foto_base64, pin } = body;
+  const nama = typeof databaseRequest !== 'undefined' && databaseRequest ? databaseRequest.snapshot.auth.employee.nama : body.nama;
 
   // Validate required fields
   if (!karyawan_id || !nama) {
@@ -126,12 +127,7 @@ function handleClockIn(body) {
   const today = getTodayString();
   const now = getNowString();
 
-  // Upload photo
-  let fotoUrl = '';
-  if (foto_base64) {
-    const fileName = karyawan_id + '_masuk_' + today;
-    fotoUrl = uploadFoto(foto_base64, fileName);
-  }
+  if (typeof databaseRequest !== 'undefined' && databaseRequest && !foto_base64) return { error: 'Foto absensi diperlukan.' };
 
   // Check location
   const lokasi = cekLokasi(lat, lng);
@@ -149,6 +145,14 @@ function handleClockIn(body) {
     }
     shiftMulai = shiftKhusus.shift_mulai;
   }
+
+  // Upload photo
+  let fotoUrl = '';
+  if (foto_base64) {
+    const fileName = karyawan_id + '_masuk_' + today;
+    fotoUrl = uploadFoto(foto_base64, fileName);
+  }
+
 
   // Generate record ID
   const id = 'A' + today.replace(/-/g, '') + '-' + karyawan_id + '-IN';
@@ -225,6 +229,8 @@ function handleClockOut(body) {
 
   const now = getNowString();
 
+  if (typeof databaseRequest !== 'undefined' && databaseRequest && !foto_base64) return { error: 'Foto absensi diperlukan.' };
+
   // Upload photo
   let fotoUrl = '';
   if (foto_base64) {
@@ -237,8 +243,8 @@ function handleClockOut(body) {
 
   // Calculate duration
   const jamMasukStr = String(data[targetRow - 1][4]);
-  const jamMasuk = new Date(jamMasukStr);
-  const jamKeluar = new Date();
+  const jamMasuk = new Date(jamMasukStr.replace(' ', 'T') + (/[Z+]\d*:?\d*$/.test(jamMasukStr) ? '' : '+07:00'));
+  const jamKeluar = databaseNow();
   const durasiMs = jamKeluar - jamMasuk;
   const durasiJam = Math.round((durasiMs / 3600000) * 100) / 100;
 

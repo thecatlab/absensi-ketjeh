@@ -54,6 +54,8 @@ export default function SettingsPanel({ settings, jabatanOptions, adminPassword,
         {!editing ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
+              <InfoItem label="Nama perusahaan" value={form.nama_perusahaan} />
+              <InfoItem label="Folder foto Drive" value={form.foto_folder_id || '-'} />
               <InfoItem label="Jam Masuk" value={form.shift_mulai} />
               <InfoItem label="Jam Keluar" value={form.shift_selesai} />
               <InfoItem label="Toleransi" value={`${form.toleransi_terlambat_menit} menit`} />
@@ -67,6 +69,8 @@ export default function SettingsPanel({ settings, jabatanOptions, adminPassword,
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+              <FieldInput label="Nama perusahaan" type="text" value={form.nama_perusahaan} onChange={v => update('nama_perusahaan', v)} />
+              <FieldInput label="ID folder foto Drive" type="text" value={form.foto_folder_id} onChange={v => update('foto_folder_id', v)} />
               <FieldInput label="Jam Masuk" type="time" value={form.shift_mulai} onChange={v => update('shift_mulai', v)} />
               <FieldInput label="Jam Keluar" type="time" value={form.shift_selesai} onChange={v => update('shift_selesai', v)} />
               <FieldInput label="Toleransi (menit)" type="number" value={form.toleransi_terlambat_menit} onChange={v => update('toleransi_terlambat_menit', v)} />
@@ -114,6 +118,8 @@ export default function SettingsPanel({ settings, jabatanOptions, adminPassword,
 
 function buildForm(settings) {
   return {
+    nama_perusahaan: settings?.nama_perusahaan || '',
+    foto_folder_id: settings?.foto_folder_id || '',
     shift_mulai: settings?.shift_mulai || '08:00',
     shift_selesai: settings?.shift_selesai || '17:00',
     toleransi_terlambat_menit: settings?.toleransi_terlambat_menit || '15',

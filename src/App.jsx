@@ -8,7 +8,7 @@ import ReservasiPanelPage from './pages/ReservasiPanelPage'
 import AdminPage from './pages/AdminPage'
 import ClockPage from './pages/ClockPage'
 import InstallPrompt from './components/InstallPrompt'
-import { getKaryawan } from './api/client'
+import { getKaryawan, setEmployeeCredential } from './api/client'
 
 const DASHBOARD_SESSION_KEY = 'employee_dashboard_session'
 
@@ -65,11 +65,13 @@ function App() {
   const shouldHideChrome = isClockPage
 
   function handleSelectEmployee(employee) {
+    setEmployeeCredential(null, null);
     setSelectedEmployee(employee)
     setVerifiedAccess(null)
   }
 
   function startDashboardSession(employee, pin) {
+    setEmployeeCredential(employee.id, pin);
     const session = {
       employeeId: employee.id,
       role: employee.jabatan || '',
@@ -87,6 +89,7 @@ function App() {
   }
 
   function handleClockOutSuccess() {
+    setEmployeeCredential(null, null);
     localStorage.removeItem(DASHBOARD_SESSION_KEY)
     setDashboardSession(null)
     setVerifiedAccess(null)

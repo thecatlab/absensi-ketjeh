@@ -25,3 +25,7 @@ dist-ssr
 *.sw?
 .vercel
 .env*.local
+
+# Local deployment state and CLI cache
+.clasp.json
+supabase/.temp/

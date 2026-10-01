@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import DatabasePanel from './DatabasePanel';
 import DashboardPage from './DashboardPage';
 import EmployeesPage from './EmployeesPage';
 import ShiftsPage from './ShiftsPage';
@@ -60,7 +61,10 @@ export default function AdminLayout({ role, password, onLogout }) {
       {activeTab === 'pengumuman' && <PengumumanPage adminPassword={password} role={role} />}
       {activeTab === 'reservasi' && <ReservasiPage adminPassword={password} startFormOpen={false} />}
       {activeTab === 'todo' && <TodosPage adminPassword={password} />}
-      {activeTab === 'karyawan' && <EmployeesPage adminPassword={password} />}
+      {activeTab === 'karyawan' && <>
+        <EmployeesPage adminPassword={password} />
+        {role === 'admin' && <DatabasePanel password={password} onLogout={onLogout} />}
+      </>}
       {activeTab === 'shift' && <ShiftsPage adminPassword={password} />}
       {activeTab === 'laporan' && <ReportsPage adminPassword={password} />}
       {activeTab === 'catatan' && <NotesPage adminPassword={password} role={role} />}

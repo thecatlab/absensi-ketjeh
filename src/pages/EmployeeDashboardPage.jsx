@@ -23,6 +23,7 @@ export default function EmployeeDashboardPage({ employee, embedded = false }) {
     Promise.all([getEmployeeDashboard(employee), getPengaturan()])
       .then(([dashboardRes, settingsRes]) => {
         if (dashboardRes.success) setData(dashboardRes);
+        else setMessage({ text: dashboardRes.error, isError: true });
         if (settingsRes.success) setSettings(settingsRes.data);
       })
       .finally(() => setLoading(false));

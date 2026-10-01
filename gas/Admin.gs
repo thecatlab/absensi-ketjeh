@@ -8,13 +8,18 @@
 // ============================================================
 
 function handleAdminLogin(body) {
+  if (typeof databaseRequest !== 'undefined' && databaseRequest) {
+    const role = databaseRequest.snapshot.auth.role;
+    return ['admin', 'manager'].indexOf(role) !== -1 && body.password === databaseRequest.body.password
+      ? { success: true, role } : { error: 'Password salah' };
+  }
   const { password } = body;
   const settings = getSettings();
 
-  if (password === settings.admin_password) {
+  if (password && password === settings.admin_password) {
     return { success: true, role: 'admin' };
   }
-  if (password === settings.manager_password) {
+  if (password && password === settings.manager_password) {
     return { success: true, role: 'manager' };
   }
 
@@ -39,6 +44,13 @@ function handleEditPengaturan(body) {
     return { error: 'Akses ditolak. Hanya admin.' };
   }
 
+  const allowedSettings = ['shift_mulai','shift_selesai','toleransi_terlambat_menit','geofence_lat','geofence_lng','geofence_radius_meter','nama_perusahaan','foto_folder_id','admin_password','manager_password','briefing_photo_roles','reservation_manage_roles'];
+  if (!newSettings || typeof newSettings !== 'object' || Array.isArray(newSettings)
+      || Object.keys(newSettings).some(function(key) { return allowedSettings.indexOf(key) === -1; })) return { error: 'Pengaturan tidak valid.' };
+  for (const key of ['admin_password', 'manager_password']) {
+    if (newSettings[key] !== undefined && (typeof newSettings[key] !== 'string' || !newSettings[key].trim()
+        || newSettings[key] !== newSettings[key].trim() || newSettings[key].length > 64)) return { error: 'Password harus 1–64 karakter tanpa spasi di awal/akhir.' };
+  }
   const sheet = getSheet('Pengaturan');
   const data = sheet.getDataRange().getDisplayValues();
 
@@ -318,7 +330,7 @@ function handleTambahAdminNote(body) {
 
   const today = getTodayString();
   const jam = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'HH:mm');
-  const id = 'N' + new Date().getTime();
+  const id = databaseRecordId('N');
 
   const sheet = getSheet('AdminNotes');
   sheet.appendRow([

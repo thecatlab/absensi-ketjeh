@@ -7,7 +7,7 @@ import { createServer } from 'vite';
 let server;
 let EmployeeForm;
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true }, appType: 'custom' });
+  server = await createServer({ server: { middlewareMode: true }, appType: 'custom', optimizeDeps: { noDiscovery: true, include: [] } });
   ({ default: EmployeeForm } = await server.ssrLoadModule('/src/components/EmployeeForm.jsx'));
 });
 after(async () => { await server?.close(); });

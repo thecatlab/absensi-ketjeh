@@ -3,8 +3,6 @@
  * Sheet-backed announcements, reservations, to-do, and briefing photos.
  */
 
-const BRIEFING_FOLDER_ID = '1kVVoyWWXNVymQKgbN-lbPzkikalxA_zl';
-
 const PENGUMUMAN_HEADERS = ['id', 'judul', 'isi', 'tanggal_mulai', 'tanggal_selesai', 'aktif', 'dibuat_oleh', 'target_type', 'target_value'];
 const RESERVASI_HEADERS = ['id', 'tanggal', 'jam', 'nama_pelanggan', 'pesanan', 'keterangan', 'status', 'area'];
 const TODO_HEADERS = ['id', 'judul', 'deskripsi', 'target_type', 'target_value', 'aktif', 'schedule_type', 'tanggal_mulai', 'tanggal_selesai', 'schedule_value', 'schedule_interval_months'];
@@ -37,7 +35,7 @@ function handleTambahPengumuman(body) {
 
   const sheet = getOrCreateSheet('Pengumuman', PENGUMUMAN_HEADERS);
   sheet.appendRow([
-    'P' + new Date().getTime(),
+    databaseRecordId('P'),
     body.judul,
     body.isi,
     body.tanggal_mulai || getTodayString(),
@@ -115,7 +113,7 @@ function handleTambahReservasi(body) {
 
   const sheet = getOrCreateSheet('Reservasi', RESERVASI_HEADERS);
   sheet.appendRow([
-    'R' + new Date().getTime(),
+    databaseRecordId('R'),
     body.tanggal,
     body.jam,
     body.nama_pelanggan,
@@ -223,7 +221,7 @@ function handleTambahTodo(body) {
 
   const sheet = getOrCreateSheet('Todo', TODO_HEADERS);
   sheet.appendRow([
-    'T' + new Date().getTime(),
+    databaseRecordId('T'),
     body.judul,
     body.deskripsi || '',
     body.target_type,
@@ -272,6 +270,12 @@ function handleHapusTodo(body) {
 }
 
 function handleSetTodoStatus(body) {
+  if (typeof databaseRequest !== 'undefined' && databaseRequest) {
+    const employee = databaseRequest.snapshot.auth.employee;
+    if (!employee || !getTodosForEmployee(employee.id, employee.jabatan, employee.nama, getTodayString())
+        .some(function(todo) { return todo.id === body.todo_id; })) return { error: 'To-do tidak tersedia untuk karyawan ini.' };
+    body.nama = employee.nama;
+  }
   if (!body.karyawan_id || !body.todo_id) return { error: 'karyawan_id dan todo_id diperlukan' };
 
   const today = getTodayString();
@@ -282,24 +286,32 @@ function handleSetTodoStatus(body) {
   for (let i = 1; i < data.length; i++) {
     if (data[i][1] === today && String(data[i][2]) === String(body.karyawan_id) && String(data[i][4]) === String(body.todo_id)) {
       sheet.getRange(i + 1, 6).setValue(selesai ? 'TRUE' : 'FALSE');
-      sheet.getRange(i + 1, 7).setValue(Utilities.formatDate(new Date(), 'Asia/Jakarta', 'HH:mm'));
+      sheet.getRange(i + 1, 7).setValue(Utilities.formatDate(databaseNow(), 'Asia/Jakarta', 'HH:mm'));
       return { success: true };
     }
   }
 
   sheet.appendRow([
-    'TS' + new Date().getTime(),
+    databaseRecordId('TS'),
     today,
     body.karyawan_id,
     body.nama || '',
     body.todo_id,
     selesai ? 'TRUE' : 'FALSE',
-    Utilities.formatDate(new Date(), 'Asia/Jakarta', 'HH:mm')
+    Utilities.formatDate(databaseNow(), 'Asia/Jakarta', 'HH:mm')
   ]);
   return { success: true };
 }
 
 function handleUploadFotoBriefing(body) {
+  if (typeof databaseRequest !== 'undefined' && databaseRequest) {
+    const employee = databaseRequest.snapshot.auth.employee;
+    const roles = String(getSettings().briefing_photo_roles || 'Manager,Captain Floor').split(/[,\n]/);
+    if (!employee || !roles.some(function(role) { return role.trim().toLowerCase() === employee.jabatan.toLowerCase(); })) {
+      return { error: 'Akses foto briefing ditolak.' };
+    }
+    body.nama = employee.nama;
+  }
   if (!body.karyawan_id || !body.nama || !body.foto_base64) {
     return { error: 'karyawan_id, nama, dan foto_base64 diperlukan' };
   }
@@ -310,10 +322,10 @@ function handleUploadFotoBriefing(body) {
   }
 
   const fileName = body.karyawan_id + '_briefing_' + today;
-  const fotoUrl = uploadFotoToFolder(body.foto_base64, fileName, BRIEFING_FOLDER_ID);
-  const jam = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'HH:mm');
+  const fotoUrl = uploadFoto(body.foto_base64, fileName);
+  const jam = Utilities.formatDate(databaseNow(), 'Asia/Jakarta', 'HH:mm');
   const record = {
-    id: 'B' + new Date().getTime(),
+    id: databaseRecordId('B'),
     tanggal: today,
     karyawan_id: body.karyawan_id,
     nama: body.nama,

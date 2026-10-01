@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { setAdminCredential } from '../api/client';
 import AdminLogin from '../components/AdminLogin';
 import AdminLayout from './admin/AdminLayout';
 
@@ -7,13 +8,16 @@ export default function AdminPage() {
 
   useEffect(() => {
     localStorage.removeItem('admin_session');
+    return () => setAdminCredential('');
   }, []);
 
   function handleLogin(role, password) {
+    setAdminCredential(password);
     setSession({ role, password });
   }
 
   function handleLogout() {
+    setAdminCredential('');
     setSession(null);
   }
 

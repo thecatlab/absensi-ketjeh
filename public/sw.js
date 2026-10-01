@@ -1,4 +1,4 @@
-const CACHE_NAME = 'absensi-ketjeh-v1';
+const CACHE_NAME = 'absensi-ketjeh-v2-supabase';
 const STATIC_ASSETS = [
   '/',
   '/favicon.svg',

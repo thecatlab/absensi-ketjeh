@@ -26,22 +26,79 @@ function configurationError() {
   return { success: false, error: CONFIGURATION_ERROR };
 }
 
+let employeeCredential = null;
+let adminCredential = '';
+const pendingWrites = new Map();
+const publicReads = new Set(['getKaryawan', 'getJabatan', 'getPengaturan']);
+const employeeActions = new Set(['clockIn', 'clockOut', 'getAbsensi', 'cekStatusHariIni', 'getEmployeeDashboard', 'setTodoStatus', 'uploadFotoBriefing']);
+
+export function setEmployeeCredential(employeeId, pin) {
+  pendingWrites.clear();
+  employeeCredential = employeeId && pin ? { karyawan_id: employeeId, pin } : null;
+}
+
+export function setAdminCredential(password) {
+  pendingWrites.clear();
+  adminCredential = password || '';
+}
+
+function requestCredentials(action, body) {
+  if (body.password) return { password: body.password };
+  if (body.pin) return { karyawan_id: body.karyawan_id, pin: body.pin };
+  if (employeeActions.has(action)) return employeeCredential || {};
+  return adminCredential ? { password: adminCredential } : employeeCredential || {};
+}
+
+async function readResponse(response) {
+  if (!response.ok) return { error: 'Server belum dapat diakses. Silakan coba lagi.' };
+  const result = await response.json();
+  if (!result || typeof result !== 'object' || (!result.success && !result.error)) {
+    return { error: 'Jawaban server tidak lengkap. Silakan coba lagi.' };
+  }
+  return result;
+}
+
 async function gasGet(action, params = {}) {
   if (!GAS_URL) return configurationError();
-  const url = new URL(GAS_URL);
-  url.searchParams.set('action', action);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString());
-  return res.json();
+  if (!publicReads.has(action)) return gasPost(action, params);
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.set('action', action);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    return await readResponse(await fetch(url.toString()));
+  } catch {
+    return { error: 'Koneksi terputus. Silakan coba lagi.' };
+  }
 }
 
 async function gasPost(action, body = {}) {
   if (!GAS_URL) return configurationError();
-  const res = await fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, ...body }),
-  });
-  return res.json();
+  const payload = { ...requestCredentials(action, body), ...body, action };
+  const mutation = !/^(get|cek|download|verify|adminLogin|syncSheets)/.test(action);
+  const fingerprint = JSON.stringify(payload);
+  let pending = mutation ? pendingWrites.get(fingerprint) : null;
+  if (pending?.promise) return pending.promise;
+  if (mutation && !pending) {
+    pending = { id: crypto.randomUUID() };
+    pendingWrites.set(fingerprint, pending);
+  }
+  if (pending) payload.operation_id = pending.id;
+  const run = async () => {
+    try {
+      const result = await readResponse(await fetch(GAS_URL, {
+        method: 'POST', body: JSON.stringify(payload),
+      }));
+      if (result.success && pending) pendingWrites.delete(fingerprint);
+      return result;
+    } catch {
+      return { error: 'Koneksi terputus. Coba kirim lagi dengan data yang sama; absensi tidak akan digandakan.' };
+    } finally {
+      if (pending) pending.promise = null;
+    }
+  };
+  const promise = run();
+  if (pending) pending.promise = promise;
+  return promise;
 }
 
 function normalizeClockData(data) {
@@ -211,6 +268,7 @@ export async function getDashboardData() {
     gasGet('getAbsensiHariIni'),
     gasGet('getKaryawan'),
   ]);
+  if (absensi.error || karyawan.error) return { error: absensi.error || karyawan.error };
   const records = absensi.data || [];
   const totalKaryawan = (karyawan.data || []).length;
   const hadir = records.length;
@@ -881,4 +939,24 @@ function extractTimeFromDatetime(dtStr) {
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function getJabatanAdmin() {
+  if (shouldUseMock()) return { success: true, data: MOCK_JABATAN };
+  return gasPost('getJabatanAdmin');
+}
+
+export async function saveJabatan(jabatan, aktif, password) {
+  if (shouldUseMock()) return { error: 'Perubahan katalog memerlukan server QA.' };
+  return gasPost('simpanJabatan', { jabatan, aktif, password });
+}
+
+export async function getSyncStatus() {
+  if (shouldUseMock()) return { success: true, data: { configured: false } };
+  return gasPost('getSyncStatus');
+}
+
+export async function syncSheets(password) {
+  if (shouldUseMock()) return { error: 'Sinkronisasi memerlukan server QA.' };
+  return gasPost('syncSheets', { password });
 }
