@@ -56,7 +56,9 @@ approved catalog, employee-title, and role-setting changes.
    fields. Check for employees assigned a removed title before retiring it.
 3. Deploy `gas/Admin.gs`, `gas/Code.gs`, and the reservation fallback change in
    `gas/Dashboard.gs` to the existing Apps Script project. Preserve any other
-   live source differences and the endpoint URL. Google authorization must be
+   live source differences and the endpoint URL. Deploy while signed in as
+   `restoketjeh@gmail.com`, with Execute as Me. Alfin's account can read the photo
+   archive but cannot create attendance photos in it. Google authorization must be
    completed by the account holder before deployment can finish.
 4. Verify `getJabatan` and authenticated `getAllEmployees`, then QA the frontend
    preview against that endpoint before promoting it to production.
@@ -69,3 +71,18 @@ Apps Script version on the existing deployment (version 9 before this change).
 The additive `Jabatan` tab can remain. Never delete tabs, replace the entire live
 workbook, or restore older data over new operational records without approval.
 Workbook exports retain linked media URLs; media files remain in Google Drive.
+
+## Attendance photo deployment check
+
+On October 1, 2026, version 10 ran under a deploying account that could read the
+photo archive but could not create files in its date folders. `uploadFoto` failed
+at `dateFolder.createFile`, before any attendance row was written. Version 11
+restored execution under `restoketjeh@gmail.com` on the same deployment URL,
+without changing application logic or folder permissions.
+
+Before each backend release, verify the deploying account can upload a synthetic
+photo through `uploadFoto` and return a viewable image URL. Reading the folder or
+passing report/catalog API checks alone does not verify photo write permission.
+Run this check separately from attendance handlers; do not create fake attendance
+records. Remove temporary diagnostic code before creating the release version.
+Keep deployment execution under the service owner when releasing or rolling back.
