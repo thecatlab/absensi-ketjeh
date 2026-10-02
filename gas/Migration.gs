@@ -13,8 +13,10 @@ function captureMigrationSource() {
     if(!sheet) throw new Error('Missing tab: '+name);
     const range=sheet.getDataRange();
     const display=range.getDisplayValues();
-    const headers=display[0];
-    if(JSON.stringify(headers)!==JSON.stringify(DATABASE_HEADERS[name])) throw new Error('Unexpected columns: '+name);
+    // Owners can have cells beyond the application's columns. Preserve the full
+    // range in the source backup, but import only the defined record fields.
+    const headers=display[0].slice(0,DATABASE_HEADERS[name].length);
+    if(JSON.stringify(headers)!==JSON.stringify(DATABASE_HEADERS[name]) || display[0].slice(headers.length).some(function(value){return String(value).trim()!=='';})) throw new Error('Unexpected columns: '+name);
     const seen=new Set();
     const rows=display.slice(1).map(function(values){
       const data={};headers.forEach(function(h,i){data[h]=values[i];});
@@ -64,4 +66,43 @@ function reconcileMigrationSource() {
   });
   properties.setProperty('MIGRATION_RECONCILIATION',JSON.stringify({verified_at:new Date().toISOString(),sha256:databaseDigest(content),counts}));
   console.log(JSON.stringify({success:true,counts}));
+}
+
+// Prepare a separate, verified legacy workbook without modifying the database or
+// current mirror. Switching back to Sheets must never resurrect deleted records.
+function buildRollbackWorkbook() {
+  if(databaseMode()!=='supabase') throw new Error('Rollback preparation requires Supabase');
+  const properties=PropertiesService.getScriptProperties();
+  const exported=supabaseRpc('export',{p_key:properties.getProperty('CREDENTIAL_EXPORT_KEY')});
+  if(!exported.control.maintenance) throw new Error('Pause database writes before preparing rollback');
+  backupSupabaseDatabase();
+  const folder=DriveApp.getFolderById(properties.getProperty('DATABASE_BACKUP_FOLDER_ID'));
+  if(folder.getSharingAccess()!==DriveApp.Access.PRIVATE) throw new Error('Rollback folder must be private');
+  const originalId=properties.getProperty('SPREADSHEET_ID');
+  const copy=DriveApp.getFileById(originalId).makeCopy('Ketjeh rollback '+Date.now(),folder);
+  const id=copy.getId();
+  if(id===originalId) throw new Error('Rollback must use a new workbook');
+  const workbook=SpreadsheetApp.openById(id);
+  const active=Object.assign({},exported,{records:exported.records.filter(function(r){return !r.deleted_at;})});
+  Object.keys(DATABASE_HEADERS).forEach(function(name){
+    const sheet=workbook.getSheetByName(name);
+    if(!sheet) throw new Error('Missing rollback tab: '+name);
+    // Clear only the application's columns in the newly created copy. Original
+    // files, manual calculation tabs, and cells outside those columns are retained.
+    sheet.getRange(1,1,sheet.getMaxRows(),DATABASE_HEADERS[name].length+1).clearContent();
+    sheet.getRange(1,1,1,DATABASE_HEADERS[name].length+1).setValues([DATABASE_HEADERS[name].concat('_deleted_at')]);
+  });
+  SpreadsheetApp.flush();
+  const plan=mirrorPlan(active,mirrorRead(id));
+  const ids=mirrorEnsureCapacity(id,plan.updates);
+  for(let i=0;i<plan.updates.length;i+=200) {
+    Sheets.Spreadsheets.batchUpdate({requests:plan.updates.slice(i,i+200).flatMap(function(update){return mirrorWriteRequests(update,ids[update.sheet]);})},id);
+  }
+  const verification=mirrorPlan(active,mirrorRead(id));
+  if(verification.updates.length) throw new Error('Rollback workbook verification failed');
+  const result={verified_at:new Date().toISOString(),spreadsheet_id:id,source_snapshot_at:exported.captured_at,
+    active_records:active.records.length,retained_deleted_records:exported.records.length-active.records.length,datasets:verification.manifest};
+  properties.setProperty('ROLLBACK_WORKBOOK',JSON.stringify(result));
+  console.log(JSON.stringify(result));
+  return result;
 }

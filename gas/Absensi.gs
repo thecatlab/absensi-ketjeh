@@ -231,6 +231,13 @@ function handleClockOut(body) {
 
   if (typeof databaseRequest !== 'undefined' && databaseRequest && !foto_base64) return { error: 'Foto absensi diperlukan.' };
 
+  // Sheets displays morning hours without a leading zero; keep that stored
+  // value intact while normalizing only the timestamp used for arithmetic.
+  const storedStart = data[targetRow - 1][4];
+  const startText = String(storedStart).replace(/[ T](\d{1,2}):/, function(_, hour) { return 'T' + hour.padStart(2, '0') + ':'; });
+  const jamMasuk = storedStart instanceof Date ? storedStart : new Date(startText + (/(Z|[+-]\d{2}:?\d{2})$/i.test(startText) ? '' : '+07:00'));
+  if (!Number.isFinite(jamMasuk.getTime())) return { error: 'Jam masuk tidak valid. Hubungi admin sebelum clock out.' };
+
   // Upload photo
   let fotoUrl = '';
   if (foto_base64) {
@@ -242,8 +249,6 @@ function handleClockOut(body) {
   const lokasi = cekLokasi(lat, lng);
 
   // Calculate duration
-  const jamMasukStr = String(data[targetRow - 1][4]);
-  const jamMasuk = new Date(jamMasukStr.replace(' ', 'T') + (/[Z+]\d*:?\d*$/.test(jamMasukStr) ? '' : '+07:00'));
   const jamKeluar = databaseNow();
   const durasiMs = jamKeluar - jamMasuk;
   const durasiJam = Math.round((durasiMs / 3600000) * 100) / 100;

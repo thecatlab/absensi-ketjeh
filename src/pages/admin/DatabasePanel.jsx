@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getJabatanAdmin, saveJabatan, getSyncStatus, syncSheets, updateSettings } from '../../api/client';
 
-export default function DatabasePanel({ password, onLogout }) {
+export default function DatabasePanel({ password, onLogout, onCatalogChanged }) {
   const [roles, setRoles] = useState([]);
   const [newRole, setNewRole] = useState('');
   const [status, setStatus] = useState(null);
@@ -21,7 +21,7 @@ export default function DatabasePanel({ password, onLogout }) {
     const result = await saveJabatan(jabatan, aktif, password);
     setBusy(false);
     setMessage(result.error || result.message);
-    if (result.success) { setNewRole(''); load(); }
+    if (result.success) { setNewRole(''); load(); onCatalogChanged(); }
   }
 
   async function saveCredentials(event) {

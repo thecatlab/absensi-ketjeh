@@ -7,6 +7,8 @@ import { getAbsensi, verifyEmployeePin } from '../api/client'
 export default function HistoryPage({ selectedEmployee, employees, onSelectEmployee, verifiedAccess, onPinVerified }) {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(null)
+  const [retry, setRetry] = useState(0)
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState(null)
   const [verifying, setVerifying] = useState(false)
@@ -31,13 +33,15 @@ export default function HistoryPage({ selectedEmployee, employees, onSelectEmplo
     Promise.resolve()
       .then(() => {
         setLoading(true)
+        setLoadError(null)
         return getAbsensi(dariStr, sampaiStr, selectedEmployee.id)
       })
       .then(res => {
         if (res.success) setHistory(res.data)
+        else setLoadError(res.error || 'Riwayat belum dapat dimuat. Silakan coba lagi.')
       })
       .finally(() => setLoading(false))
-  }, [selectedEmployee, isVerified])
+  }, [selectedEmployee, isVerified, retry])
 
   async function handlePinSubmit(e) {
     e.preventDefault()
@@ -118,6 +122,11 @@ export default function HistoryPage({ selectedEmployee, employees, onSelectEmplo
           {[1, 2, 3].map(i => (
             <div key={i} className="bg-gray-100 rounded-xl h-16 animate-pulse" />
           ))}
+        </div>
+      ) : loadError ? (
+        <div role="alert" className="bg-red-50 rounded-xl p-4 text-sm text-danger">
+          <p>{loadError}</p>
+          <button onClick={() => setRetry(value => value + 1)} className="mt-2 font-semibold">Coba lagi</button>
         </div>
       ) : history.length === 0 ? (
         <div className="bg-gray-50 rounded-xl p-6 text-center text-gray-400 text-sm">
@@ -262,6 +271,6 @@ function AttendanceDetail({ record }) {
 function extractTime(dateTimeStr) {
   if (!dateTimeStr) return null
   const parts = String(dateTimeStr).split(' ')
-  if (parts.length >= 2) return parts[1].substring(0, 5)
+  if (parts.length >= 2) return parts[1].split(':').slice(0, 2).map(part => part.padStart(2, '0')).join(':')
   return dateTimeStr
 }

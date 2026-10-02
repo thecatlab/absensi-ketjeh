@@ -22,6 +22,7 @@ const TABS = [
 
 export default function AdminLayout({ role, password, onLogout }) {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [catalogRevision, setCatalogRevision] = useState(0);
 
   return (
     <div className="px-5 py-5">
@@ -62,8 +63,8 @@ export default function AdminLayout({ role, password, onLogout }) {
       {activeTab === 'reservasi' && <ReservasiPage adminPassword={password} startFormOpen={false} />}
       {activeTab === 'todo' && <TodosPage adminPassword={password} />}
       {activeTab === 'karyawan' && <>
-        <EmployeesPage adminPassword={password} />
-        {role === 'admin' && <DatabasePanel password={password} onLogout={onLogout} />}
+        <EmployeesPage adminPassword={password} catalogRevision={catalogRevision} />
+        {role === 'admin' && <DatabasePanel password={password} onLogout={onLogout} onCatalogChanged={() => setCatalogRevision(value => value + 1)} />}
       </>}
       {activeTab === 'shift' && <ShiftsPage adminPassword={password} />}
       {activeTab === 'laporan' && <ReportsPage adminPassword={password} />}

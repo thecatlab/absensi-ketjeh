@@ -12,6 +12,7 @@ export default function ReservasiPage({ adminPassword, employeeAuth, canManage =
   const [listSearch, setListSearch] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [form, setForm] = useState({
@@ -26,8 +27,12 @@ export default function ReservasiPage({ adminPassword, employeeAuth, canManage =
 
   const loadItems = useCallback(() => {
     setLoading(true);
+    setLoadError(null);
     getReservasiAdmin()
-      .then(res => { if (res.success) setItems(res.data); })
+      .then(res => {
+        if (res.success) setItems(res.data);
+        else setLoadError(res.error || 'Reservasi belum dapat dimuat. Silakan coba lagi.');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -182,6 +187,11 @@ export default function ReservasiPage({ adminPassword, employeeAuth, canManage =
 
       {loading ? (
         <div className="h-20 bg-gray-100 rounded-xl animate-pulse" />
+      ) : loadError ? (
+        <div role="alert" className="bg-red-50 rounded-xl p-4 text-sm text-danger">
+          <p>{loadError}</p>
+          <button onClick={loadItems} className="mt-2 font-semibold">Coba lagi</button>
+        </div>
       ) : viewMode === 'calendar' ? (
         <CalendarView items={calendarItems} selectedDate={selectedDate} onSelectDate={setSelectedDate} onDelete={handleDelete} onEdit={handleEdit} canManage={canManage} />
       ) : (

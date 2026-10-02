@@ -411,7 +411,7 @@ function getStatusLabel(status) {
 function extractTime(dateTimeStr) {
   if (!dateTimeStr) return '-';
   const parts = String(dateTimeStr).split(' ');
-  if (parts.length >= 2) return parts[1].substring(0, 5);
+  if (parts.length >= 2) return parts[1].split(':').slice(0, 2).map(part => part.padStart(2, '0')).join(':');
   return dateTimeStr;
 }
 

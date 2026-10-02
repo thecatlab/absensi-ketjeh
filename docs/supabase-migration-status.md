@@ -1,87 +1,153 @@
 # Supabase migration implementation status
 
-Updated October 2, 2026. Work in progress; production is still on Apps Script v11
-and Google Sheets. Do not treat local tests as a release approval.
+Updated October 2, 2026, evening WIB. **Not released.** Production remains Apps
+Script v11 and Google Sheets. Migration branch is local `codex/supabase-migration`.
+Do not treat passing local tests or the initial scheduled runs as release approval.
 
 ## Account and resources
 
-- Verified browser account: `restoketjeh@gmail.com`, organization owner.
-- Free organization: **Ketjeh Seafood & Leisure** (`jlaqkwatcnxdpuoqahcw`).
-- Restaurant production project: **Ketjeh's Project** (`qqvuqjnpegnppmzmcuuw`), Singapore.
-- Separate QA project form: `absensi-ketjeh-qa`, Singapore, automatic public table
-  grants disabled, automatic RLS enabled. Last observed: password filled but form
-  not submitted. User has been asked to click Create new project.
-- QA Apps Script created under the restaurant account:
-  `19teuElYKLA8pS3EYBSsEdP6c8pm6kT3mjnDH0cTNN3b_jHg9XHqT1fcL`.
-  Initial sources pushed, not deployed. `setupQaResources` awaits Google authorization.
-  Recopy the current repository sources into the private QA checkout and push after
-  setup; later local fixes have not yet been pushed to the QA editor.
-- Supabase MCP connector still exposes the personal organization; do not use it to
-  create or alter restaurant resources until that connection is changed/verified.
-- Existing clasp credentials ARE restaurant-owned. Use pinned
-  `npx --yes @google/clasp@3.4.1`. `show-authorized-user` verified the identity.
-  Direct Sheets API with these credentials returned 403; do not assume Sheets scopes.
+- Verified owner: `restoketjeh@gmail.com`, **Ketjeh Seafood & Leisure** organization
+  (`jlaqkwatcnxdpuoqahcw`), Free, Singapore projects.
+- Production Supabase: **Ketjeh's Project**, `qqvuqjnpegnppmzmcuuw`. All three schema
+  migrations applied and advisors report zero errors/warnings. Verified zero records,
+  zero imported datasets, maintenance=true; no production import or cutover yet.
+- QA Supabase: **absensi-ketjeh-qa**, `nrgutawmfptqnbxsftcv`. All three versioned SQL
+  migrations applied. Public grants disabled; RLS enabled. Security and performance
+  advisors both report zero errors/warnings. Informational RLS-without-policy notices
+  are expected for this server-only design.
+- QA Apps Script: `19teuElYKLA8pS3EYBSsEdP6c8pm6kT3mjnDH0cTNN3b_jHg9XHqT1fcL`.
+  Restaurant OAuth, Drive upload, Sheets write, backup and trigger identity verified.
+- QA API v6 deployment: `AKfycbw7qiuH78NtiLkAALwYR-d3cORnA3IEtN3QN8qDY_ZYNefwaqAZaBAvgEKzgOBBxK2V`.
+  Includes the tested request handlers and editor-only rollback/source-capture helpers.
+- QA workbook: `1a4kS7MdnvCtmBc1auB-Mg3uzG1P7CtzhPSLBZVXnQV8`.
+- QA private backup folder: `1Bcu3kVS1peFaBE-sSHcaf-pt0DEb13ON`.
+- QA synthetic photo folder: `1IgVNhRGkcsS4HoDC9Lc0AxdWlxioyZTI`.
+- Supabase MCP still exposes the personal organization; do not alter restaurant
+  resources through it until its connection is changed and verified.
+- `clasp` 3.4.1 credentials are restaurant-owned. Vercel CLI 62.1.0 is logged out;
+  browser Vercel access was previously authorized but release access needs verifying.
 
-## Preserved backups
+## Backups and exact reconciliation
 
-Private directory (outside Git):
+Private directory, outside Git:
 `/Users/nusaindah/Documents/Absensi-backups/20261002-supabase-migration/`
 
-Contains the complete fresh XLSX, source cell JSON, row counts, checksum manifest,
-live backend clone including its clasp configuration, and a separate QA backend
-checkout. Credentials, OAuth files, and database exports must remain outside Git.
+Contains full XLSX backups, typed/display/formula/format/note source manifests,
+original live backend, encrypted database exports, private credentials/configuration,
+QA scripts/results and screenshots. Retain these until user accepts QA. Never commit
+exports, keys, PINs, passwords, OAuth state or the private QA setup script.
 
-Fresh source counts: Karyawan 42, FotoBriefing 20, TodoStatus 28, Todo 3,
-Reservasi 27, Pengumuman 0, Absensi 2042, Pengaturan 12, ShiftKhusus 0,
-AdminNotes 58, Jabatan 12. These are development baseline counts, not cutover counts.
+The QA copy captured at 19:19 WIB contained **2,254 records** across all 11 tabs:
+Karyawan 42; FotoBriefing 20; TodoStatus 28; Todo 3; Reservasi 27; Pengumuman 0;
+Absensi 2,052; Pengaturan 12; ShiftKhusus 0; AdminNotes 58; Jabatan 12.
+Earlier morning backup had 2,042 attendance rows; production continued receiving
+attendance. A fresh final backup/import is mandatory at actual cutover.
 
-## Implemented locally
+Source manifest file `1H8kDtz57Ck8CmML-_MP4KN39KM5MU9kz`, SHA256
+`b029d44d6701368788980c8afe8691df7331e370bc45d25bfb17cba504885239`.
+Every imported field, stable key, order and count matched. After workflow, credential
+and concurrency QA, **all original 2,254 records still matched exactly** (data, order,
+deleted state). Legacy duplicate TodoStatus IDs and blank clock-outs were preserved.
+The isolated QA database additionally contains synthetic records, retained deletions
+and an inactive QA catalog title; these must never be imported into production.
 
-- Versioned SQL schema with row order, dataset revisions, soft deletion, transaction
-  receipts, encryption for private credential exports, hashed login credentials,
-  import/export/restore RPCs, RLS and private grants.
-- Apps Script request adapter retaining the existing handlers and response fields.
-  Supabase mode is explicitly configured; there is no automatic Sheets fallback.
-- Server authorization for private reads, employee identity, assigned to-dos,
-  briefing roles, admin versus manager, and reservation permissions.
-- Frontend passes existing in-memory credentials and retains operation IDs across
-  failed writes; secrets are not placed in URLs or localStorage.
-- Sheets diff/repair with stable ID checks, literal RAW writes, preserved formatting
-  and notes, post-write verification, soft-delete markers and active calculation tabs.
-- Private backup, trigger installation, editor-only capture/import/reconciliation.
-- Admin catalog, credential changes, manual sync, and sync/backup status UI.
+## Implemented and verified
 
-## Verified locally so far
+- Generic record storage, dataset revisions, transactions, operation receipts,
+  maintenance boundary, soft deletion, encrypted credential exports, hashed login,
+  complete snapshots/import/export/restore, RLS and service-only RPC grants.
+- Existing handler/API contract with central authorization. Private reads use POST;
+  employee identity and role come from verified credentials. No Sheets fallback.
+- Browser credentials remain in memory; retry IDs survive uncertain responses.
+  Exact password-change retries recover their receipt after the old password expires.
+- One-way typed Sheets diff, stable-row validation, literal strings, grid growth,
+  post-write verification and deletion markers. Existing formats/notes and calculation
+  tabs remain intact. `Aktif_` views exclude deleted records and support date arithmetic.
+- Admin catalog, credential maintenance and sync/backup status. Catalog changes refresh
+  employee/settings dropdowns immediately. A used job title cannot be deactivated.
+- Private backups and five-minute sync/nightly backup triggers. Editor-only rollback
+  preparation creates a new active-only workbook, retains the original mirror and
+  database, verifies every projected cell, and never changes the live destination.
 
-- Existing 15 baseline tests pass.
-- Nine Apps Script/storage/sync tests pass, including 2050-row sync and preservation
-  of legacy duplicate TodoStatus records.
-- Four actual PostgreSQL tests (PGlite with pgcrypto) pass: complete import/export,
-  encrypted restore, leading-zero PINs, grants/RLS, duplicate import rollback,
-  transaction atomicity, receipts, revision conflicts and retained deleted rows.
-- Four client tests pass: authenticated POST reads, retained retry IDs, separated
-  employee/admin credentials and rejection of malformed attendance responses.
-- All 32 tests, frontend build, lint and diff checks pass.
+QA found and fixed single-digit legacy morning-hour parsing; insufficient copied Sheet
+row capacity; text dates breaking calculations; date serial primary-key comparison;
+credential-change retry after response loss; and stale catalog options after edits.
 
-The existing production server key was read from its owner dashboard, saved only
-in a private `.local` file outside Git, and verified with a read-only REST request
-(HTTP 200). No production tables have been created or imported. No key was added to
-frontend code. The browser Google authorization warning is awaiting user completion.
+## QA evidence
 
-## Remaining release work
+- **40 automated tests**, lint, production build and diff checks pass. Tests cover
+  actual PostgreSQL via PGlite/pgcrypto, exact restore, grants, transaction rollback,
+  duplicate submissions, midnight retry, Drive failure and photo reuse after DB failure.
+- Deployed API: public Supabase key denied all five tables and auth RPC; anonymous
+  private reads/mutations denied. Employee/admin/manager and configured reservation/
+  briefing role checks exercised. Wrong PIN is denied via `verified:false`.
+- **26 final deployed v6 permission/read checks passed**, including all manager read
+  routes, forbidden employee/admin access, admin-only manager denials, forged identity,
+  wrong credentials, old-client notices and current healthy sync status.
+- Real QA workflows: clock in/out, photos, GPS/notes, tasks, briefing, reservations,
+  announcement editing/status/deletion, shifts, admin notes, reports and employee
+  creation. Only synthetic QA entities were deactivated or soft-deleted.
+- **14 credential checks passed**, including leading-zero PIN, changed admin/manager
+  passwords, expired old login, lost-response retry, private export/sync, and restoring
+  original credentials.
+- **13 final/concurrency checks passed**: two simultaneous employee creations got
+  distinct IDs; different concurrent clock-ins produced exactly one row; simultaneous
+  task completion produced one status; original source records remained unchanged.
+- Browser: employee PIN and history; mobile 390×844 clock-in/out using a synthetic
+  camera and fixed QA GPS; admin settings; canonical Jabatan options including Bartender;
+  immediate catalog activation/deactivation refresh, history/reservation error-and-retry;
+  old dashboard's visible reload notice; real service-worker cache transition from
+  `absensi-ketjeh-v1` to `absensi-ketjeh-v2-supabase`. Physical iPhone installation has
+  not been tested; camera/GPS were simulated, not captured from an employee.
+- Sheets: all 11 datasets verified after QA; 42,332 original cells' formats/formulas/
+  notes and extra cells retained; deliberate drift repaired; owner formulas and notes
+  unchanged; all active counts and numeric date tests passed.
+- Actual encrypted **2,271-record** QA backup restored into isolated local PostgreSQL
+  with all three migrations: records, credentials, dataset metadata and receipts exact;
+  employee/admin login works; restore stays in maintenance. A subsequent isolated
+  employee creation allocated the next unused ID and committed successfully.
+- Rollback rehearsal completed at 20:27 WIB: new workbook
+  `11euI2_SzhGLILnb7_qwyRd-qy2QXtnAT_-65FxyP-Jw`, 2,265 active records, six deleted
+  records retained in Supabase/backup. Legacy login, attendance and active-list counts,
+  owner formula/note preservation, and write pause passed. QA original destination and
+  Supabase mode restored in a finally block.
+- Three read-only timing samples: employee-list median 3.182s on production Sheets,
+  2.453s on QA Supabase. Small sample and different deployments; not a claim that all
+  actions are faster. Drive upload and Apps Script latency still apply.
 
-1. Complete QA project creation and Google QA authorization; save IDs/config privately.
-2. Run QA setup to create a copied workbook, private backup folder and synthetic
-   photo folder. Capture the full display/type/formula/format source manifest.
-3. Finish review of input validation, Drive retry/folder concurrency, settings
-   maintenance coverage, encrypted key backup and old/PWA client behavior.
-4. Apply SQL to QA, configure server properties, import/reconcile every source value,
-   deploy QA API and test deployed Google/Supabase identity and permission paths.
-5. Test employee/admin workflows in browser, concurrency and response-loss behavior,
-   real Sheets changes, deletion calculations, owner formulas/notes and restore.
-6. Observe at least 24h of actual scheduled QA including a nightly backup. Record
-   timings, quota headroom, sync drift/failure recovery and performance versus v11.
-7. Implement/rehearse maintenance cutover and rollback. Refresh production backup,
-   reconcile the final delta, then enable a single write destination after closing.
-8. Publish verified frontend/backend, push GitHub, attach the PR and verify production.
-   Do not claim migration/deployment completion while these remain open.
+Private evidence files retain first-run failures as well as fixes. `qa-api-checks.json`
+has an initial harness assertion error (it checked success instead of verified for
+wrong PIN); corrected result is in `qa-final-checks.json`. `qa-workflows.json` retains
+the initial grid-capacity sync failure; subsequent complete sync verification passed.
+The first rollback helper checked the wrong owner cell A1; corrected A2 rehearsal
+passed. Do not rewrite these as if the first runs passed.
+
+## Scheduled trial and remaining release work
+
+The logged five-minute trial started **2026-10-02 20:09:04 WIB**. The nightly backup
+runs in the 02:00 WIB hour. Earliest full 24-hour assessment: **October 3 after 20:09 WIB**.
+A fresh manual backup at start was verified (2,265 records). Trial logs are stored as
+QA-only Script Properties; `reportQaSoak` writes a private evidence file. At 20:39 WIB,
+seven actual scheduled runs passed, zero failed, maximum runtime 9.499s. This is only
+the first half-hour, not the 24h gate. Latest evidence file:
+`1iuVlbkQ9iBS1hxJ6c_Jn8HX9SU4Aj-_m`. Record every
+failure, successful recovery, runtime/quota headroom and actual nightly backup.
+The short rollback drill temporarily paused QA writes only; examine overlap logs.
+
+Still required:
+1. Observe the complete 24h trial and real nightly backup; verify backup contents and
+   timing, sync cadence/recovery and quota headroom. Do not substitute manual runs.
+2. Retain the device-specific limits above: browser failure/retry, catalog refresh,
+   restored ID allocation and final deployed permission/read checks now pass. Physical
+   employee-device observation remains part of the production follow-up.
+3. Complete restaurant production configuration and required Google authorization;
+   verify Vercel ownership/release access. Keep production on Sheets during preparation.
+4. Execute the maintenance cutover runbook after closing with a fresh backup and exact
+   final reconciliation. Publish paired frontend/backend and verify real production
+   reads; no synthetic production attendance.
+5. Push GitHub and attach the migration PR only after release gates pass; verify latest
+   deployed commit, ongoing sync and a real employee submission. No production migration
+   or GitHub migration push has happened yet.
+
+A follow-up scheduling question is pending with the user. No Codex follow-up automation
+has been created. The Google QA sync/backup triggers run independently of this chat.

@@ -34,6 +34,7 @@ function setup() {
   add('Pengaturan',{key:'geofence_lng',value:'110',keterangan:''});
   add('Pengaturan',{key:'briefing_photo_roles',value:'Manager,Captain Floor',keterangan:''});
   const operations = new Map();
+  const fingerprints = new Map();
   const commits = [];
   let conflict = false;
   context.supabaseRpc=(name,args)=>{
@@ -41,8 +42,10 @@ function setup() {
     if(name==='claim') {
       const existing=operations.get(args.p_id);
       if(existing) return {response:existing};
+      fingerprints.set(args.p_id,args.p_fingerprint);
       return {started_at:'2026-10-02T01:00:00.000Z'};
     }
+    if(name==='receipt') return fingerprints.get(args.p_id)===args.p_fingerprint ? operations.get(args.p_id)||null : null;
     if(name==='release') return null;
     if(name==='commit') {
       if(conflict) {conflict=false;return {conflict:true};}
@@ -91,7 +94,7 @@ test('clock-in is one atomic change, uses verified name and retries return the s
 
 test('clock-out uses WIB timestamps and commits photo, notes, duration together',()=>{
   const {context,request,add,commits}=setup();
-  add('Absensi',{id:'A20261002-K001-IN',karyawan_id:'K001',nama:'Test employee',tanggal:'2026-10-02',jam_masuk:'2026-10-02 07:00:00',jam_keluar:'',catatan:'in'});
+  add('Absensi',{id:'A20261002-K001-IN',karyawan_id:'K001',nama:'Test employee',tanggal:'2026-10-02',jam_masuk:'2026-10-02 7:00:00',jam_keluar:'',catatan:'in'});
   context.uploadFoto=()=> 'https://example.test/out';
   const result=request('clockOut',{operation_id:randomUUID(),foto_base64:'synthetic',catatan:'out'});
   assert.equal(result.durasi_jam,1);
@@ -162,4 +165,117 @@ test('Sheets diff includes more than 1000 records, literal notes, private PIN, t
   assert.equal(context.mirrorPlan(exported,current).updates.length,1);
   [current.Absensi[1],current.Absensi[2]]=[current.Absensi[2],current.Absensi[1]];
   assert.throws(()=>context.mirrorPlan(exported,current),/Urutan baris/);
+});
+
+test('mirror refuses to replace data in an unnamed deletion-marker column',()=>{
+  const {context,headers}=setup();
+  const exported={format:1,datasets:Object.entries(headers).map(([name,columns])=>({name,headers:columns,revision:0})),records:[]};
+  const current=Object.fromEntries(Object.entries(headers).map(([name,columns])=>[name,[columns.slice()]]));
+  current.Absensi.push([...headers.Absensi.map(()=>''),'owner calculation']);
+  assert.throws(()=>context.mirrorPlan(exported,current),/sudah berisi data/);
+});
+
+test('migration imports defined fields while preserving extra cells in the full backup',()=>{
+  const {context,headers}=setup();
+  const saved={}; let backup;
+  const rows=Object.fromEntries(Object.entries(headers).map(([name,columns])=>[name,[columns.slice()]]));
+  rows.Absensi[0].push('','','','');
+  rows.Absensi.push(['A1',...Array(15).fill(''),'','','',' ']);
+  context.PropertiesService={getScriptProperties:()=>({getProperty:key=>({SPREADSHEET_ID:'qa',DATABASE_BACKUP_FOLDER_ID:'private'})[key],setProperty:(key,value)=>{saved[key]=value;}})};
+  context.SpreadsheetApp={openById:()=>({getSheetByName:name=>({getDataRange:()=>({getDisplayValues:()=>rows[name],getValues:()=>rows[name],getFormulas:()=>[],getNumberFormats:()=>[],getNotes:()=>[]})})})};
+  context.Utilities.newBlob=value=>value;
+  context.DriveApp={Access:{PRIVATE:'private'},getFolderById:()=>({getSharingAccess:()=> 'private',createFile:value=>{backup=JSON.parse(value);return {getId:()=> 'backup-id'};}})};
+  context.console={log:()=>{}};
+  vm.runInContext(readFileSync(new URL('../gas/Migration.gs',import.meta.url),'utf8'),context);
+  context.captureMigrationSource();
+  assert.equal(backup.datasets.Absensi.headers.length,16);
+  assert.equal(Object.keys(backup.datasets.Absensi.rows[0]).length,16);
+  assert.equal(backup.source.Absensi.display[1][19],' ');
+  assert.equal(saved.MIGRATION_SOURCE_FILE_ID,'backup-id');
+  rows.Absensi[0][16]='unexpected operational field';
+  assert.throws(()=>context.captureMigrationSource(),/Unexpected columns/);
+});
+
+test('mirror expands only needed grid dimensions and preserves numeric dates and cell formats',()=>{
+  const {context}=setup();
+  const calls=[];
+  context.Sheets={Spreadsheets:{get:()=>({sheets:[{properties:{sheetId:7,title:'Absensi',gridProperties:{rowCount:2053,columnCount:16}}}]}),batchUpdate:body=>calls.push(plain(body))}};
+  const values=Array(17).fill('');values[0]='QA';values[3]=context.mirrorCellValue('Absensi','tanggal','2026-10-02');values[4]=context.mirrorCellValue('Absensi','jam_masuk','2026-10-02 8:16:49');values[15]='=literal';
+  const update={sheet:'Absensi',row:2054,values,newRow:true};
+  assert.equal(context.mirrorEnsureCapacity('qa',[update]).Absensi,7);
+  assert.deepEqual(calls[0].requests.map(r=>r.appendDimension),[{sheetId:7,dimension:'ROWS',length:1},{sheetId:7,dimension:'COLUMNS',length:1}]);
+  assert.ok(Math.abs((values[4]-values[3])*86400-(8*3600+16*60+49))<0.0001);
+  const writes=plain(context.mirrorWriteRequests(update,7));
+  assert.deepEqual(writes[0].updateCells.rows[0].values[15],{userEnteredValue:{stringValue:'=literal'}});
+  assert.equal(writes[0].updateCells.fields,'userEnteredValue');
+  assert.equal(writes.length,3);
+  assert.equal(context.mirrorWriteRequests({...update,newRow:false},7).length,1);
+});
+
+test('mirror accepts a date serial as the stable key of a special shift',()=>{
+  const {context,headers}=setup();
+  const exported={format:1,datasets:Object.entries(headers).map(([name,columns])=>({name,headers:columns,revision:0})),records:[{dataset:'ShiftKhusus',id:'2099-12-31',ordinal:1,data:{tanggal:'2099-12-31',nama_hari:'QA'}}]};
+  const current=Object.fromEntries(Object.entries(headers).map(([name,columns])=>[name,[columns.concat('_deleted_at')]]));
+  current.ShiftKhusus.push([context.mirrorCellValue('ShiftKhusus','tanggal','2099-12-31'),'QA','','','','']);
+  assert.equal(context.mirrorPlan(exported,current).updates.length,0);
+});
+
+test('an exact password-change retry recovers its receipt after the old login expires',()=>{
+  const {snapshot,request,commits}=setup();
+  snapshot.auth={role:'admin'};
+  const body={password:'old-admin',operation_id:randomUUID(),settings:{admin_password:'new-admin'}};
+  const result=request('editPengaturan',body);
+  assert.equal(result.success,true);
+  snapshot.auth={};
+  assert.deepEqual(request('editPengaturan',body),result);
+  assert.equal(commits.length,1);
+  assert.throws(()=>request('editPengaturan',{...body,settings:{admin_password:'different'}}),/Akses ditolak/);
+});
+
+test('a retry after midnight keeps the original attendance date and photo name',()=>{
+  const {context,request,commits}=setup();
+  const rpc=context.supabaseRpc;
+  const filters=[];
+  context.supabaseRpc=(name,args)=>{
+    if(name==='snapshot') filters.push(args.p_filter);
+    const result=rpc(name,args);
+    return name==='claim' && !result.response ? {...result,started_at:'2026-10-01T16:59:59Z'} : result;
+  };
+  context.uploadFoto=(_,name)=>'https://example.test/'+name;
+  const response=request('clockIn',{operation_id:randomUUID(),foto_base64:'synthetic'});
+  assert.equal(response.jam_masuk,'2026-10-01 23:59:59');
+  assert.equal(filters.at(-1).from,'2026-10-01');
+  assert.equal(commits[0].p_changes[0].data.tanggal,'2026-10-01');
+  assert.match(commits[0].p_changes[0].data.foto_masuk_url,/2026-10-01/);
+});
+
+test('an uploaded photo survives a failed database save and is reused on retry',()=>{
+  const {context,request,commits}=setup();
+  const files=new Map();
+  let created=0;
+  const folder={
+    getFilesByName:name=>({hasNext:()=>files.has(name),next:()=>files.get(name)}),
+    createFile:blob=>{created++;const file={url:'https://example.test/photo-'+created};files.set(blob.name,file);return file;},
+  };
+  context.uploadFoto=(_,name)=>context.createOperationPhoto(folder,{setName(value){this.name=value;}},name).url;
+  const rpc=context.supabaseRpc;
+  let fail=true;
+  context.supabaseRpc=(name,args)=>{
+    if(name==='commit' && fail) {fail=false;throw new Error('Simulated database interruption');}
+    return rpc(name,args);
+  };
+  const body={operation_id:randomUUID(),foto_base64:'synthetic'};
+  assert.throws(()=>request('clockIn',body),/Simulated database interruption/);
+  assert.equal(commits.length,0);
+  assert.equal(files.size,1);
+  assert.equal(request('clockIn',body).success,true);
+  assert.equal(created,1);
+  assert.equal(commits.length,1);
+});
+
+test('Drive authorization failure cannot create attendance without its photo',()=>{
+  const {context,request,commits}=setup();
+  context.uploadFoto=()=>{throw new Error('Akses ditolak: DriveApp');};
+  assert.throws(()=>request('clockIn',{operation_id:randomUUID(),foto_base64:'synthetic'}),/DriveApp/);
+  assert.equal(commits.length,0);
 });

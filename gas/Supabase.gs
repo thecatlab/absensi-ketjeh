@@ -130,7 +130,15 @@ function databaseDispatch(input, method) {
       const snapshot = databaseSnapshot(body);
       const previousTime = databaseRequest && databaseRequest.startedAt;
       databaseRequest = { body, snapshot, sheets: {}, startedAt: previousTime, operationId: mutation ? body.operation_id : null };
-      databaseAuthorize(body, snapshot.auth);
+      try {
+        databaseAuthorize(body, snapshot.auth);
+      } catch (error) {
+        if (mutation && action==='editPengaturan') {
+          const receipt=supabaseRpc('receipt',{p_id:body.operation_id,p_fingerprint:databaseDigest(JSON.stringify(input))});
+          if (receipt) return receipt;
+        }
+        throw error;
+      }
       if (mutation && snapshot.maintenance) throw new Error('Sistem sedang pemeliharaan. Silakan coba lagi.');
       if (mutation && !claimed) {
         const claim = supabaseRpc('claim', { p_id: body.operation_id, p_fingerprint: databaseDigest(JSON.stringify(input)), p_lease: lease });

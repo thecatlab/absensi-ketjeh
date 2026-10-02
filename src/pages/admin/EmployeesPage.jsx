@@ -4,7 +4,7 @@ import EmployeeForm from '../../components/EmployeeForm';
 import SettingsPanel from './SettingsPanel';
 import { getAdminEmployees, getJabatan, getPengaturan, addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
 
-export default function EmployeesPage({ adminPassword }) {
+export default function EmployeesPage({ adminPassword, catalogRevision }) {
   const [employees, setEmployees] = useState([]);
   const [settings, setSettings] = useState(null);
   const [jabatanOptions, setJabatanOptions] = useState([]);
@@ -29,7 +29,7 @@ export default function EmployeesPage({ adminPassword }) {
         if (!employeesRes.success || !jabatanRes.success) {
           setLoadError(employeesRes.error || jabatanRes.error || 'Data karyawan gagal dimuat.');
         } else if (jabatanRes.data.length === 0) {
-          setLoadError('Belum ada jabatan aktif. Tambahkan jabatan di Google Sheets.');
+          setLoadError('Belum ada jabatan aktif. Tambahkan jabatan melalui admin.');
         }
       })
       .catch(() => {
@@ -42,7 +42,7 @@ export default function EmployeesPage({ adminPassword }) {
   useEffect(() => {
     const timer = setTimeout(loadEmployees, 0);
     return () => clearTimeout(timer);
-  }, [loadEmployees]);
+  }, [loadEmployees, catalogRevision]);
 
   function showMessage(text, isError = false) {
     setMessage({ text, isError });

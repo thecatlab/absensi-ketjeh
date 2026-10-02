@@ -91,7 +91,9 @@ async function gasPost(action, body = {}) {
       if (result.success && pending) pendingWrites.delete(fingerprint);
       return result;
     } catch {
-      return { error: 'Koneksi terputus. Coba kirim lagi dengan data yang sama; absensi tidak akan digandakan.' };
+      return { error: mutation
+        ? 'Koneksi terputus. Coba kirim lagi dengan data yang sama; penyimpanan tidak akan digandakan.'
+        : 'Koneksi terputus. Silakan coba lagi.' };
     } finally {
       if (pending) pending.promise = null;
     }

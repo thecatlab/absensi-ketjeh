@@ -24,7 +24,7 @@ function client() {
 }
 
 test('private reads pass the existing in-memory PIN in POST, never in URL',async()=>{
-  const {context,calls}=client();
+  const {context,calls,results}=client();
   context.setEmployeeCredential('K001','0012');
   await context.getAbsensi('2026-10-01','2026-10-02','K001');
   assert.equal(calls[0].options.method,'POST');
@@ -33,6 +33,8 @@ test('private reads pass the existing in-memory PIN in POST, never in URL',async
   context.setEmployeeCredential(null,null);
   await context.getAbsensi('2026-10-01','2026-10-02','K001');
   assert.equal(JSON.parse(calls[1].options.body).pin,undefined);
+  results.push(new Error('Connection interrupted'));
+  assert.equal((await context.getAbsensi('2026-10-01','2026-10-02','K001')).error,'Koneksi terputus. Silakan coba lagi.');
 });
 
 test('network failure preserves operation ID; successful save then allows a new operation',async()=>{

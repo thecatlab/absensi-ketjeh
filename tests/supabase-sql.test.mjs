@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import vm from 'node:vm';
 import test from 'node:test';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 
-const migration=readFileSync(new URL('../supabase/migrations/20261001170312_ketjeh_storage.sql',import.meta.url),'utf8');
+const migrations=new URL('../supabase/migrations/',import.meta.url);
+const migration=readdirSync(migrations).filter(name=>name.endsWith('.sql')).sort().map(name=>readFileSync(new URL(name,migrations),'utf8')).join('\n');
 const context=vm.createContext({});
 vm.runInContext(readFileSync(new URL('../gas/Supabase.gs',import.meta.url),'utf8'),context);
 const headers=JSON.parse(vm.runInContext('JSON.stringify(DATABASE_HEADERS)',context));
@@ -96,12 +97,18 @@ test('transaction receipts prevent repeats; revision conflicts and failures leav
     assert.ok((await rpc(db,'claim',{p_id:id,p_lease:randomUUID(),p_fingerprint:'test'})).error);
     const changes=[{dataset:'Absensi',id:'A1',kind:'insert',data:{id:'A1',karyawan_id:'K001',tanggal:'2026-10-02',jam_masuk:'2026-10-02 08:00:00'}}];
     const args={p_id:id,p_lease:lease,p_versions:{Absensi:0},p_changes:changes,p_response:{success:true,jam_masuk:'2026-10-02 08:00:00'},p_key:key};
+    await db.exec('update public.ketjeh_control set maintenance=true');
+    assert.match((await rpc(db,'commit',args)).error,/pemeliharaan/);
+    assert.equal((await db.query("select count(*)::int as n from public.ketjeh_records where dataset='Absensi'")).rows[0].n,0);
+    await db.exec('update public.ketjeh_control set maintenance=false');
     assert.deepEqual(await rpc(db,'commit',{...args,p_versions:{Absensi:9}}),{conflict:true});
     assert.equal((await db.query("select count(*)::int as n from public.ketjeh_records where dataset='Absensi'")).rows[0].n,0);
     await assert.rejects(()=>rpc(db,'commit',{...args,p_changes:[...changes,{dataset:'Absensi',id:'bad',kind:'update',data:{id:'bad'}}]}),/Record missing/);
     assert.equal((await db.query("select count(*)::int as n from public.ketjeh_records where dataset='Absensi'")).rows[0].n,0);
     assert.deepEqual(await rpc(db,'commit',args),args.p_response);
     assert.deepEqual(await rpc(db,'commit',args),args.p_response);
+    assert.deepEqual(await rpc(db,'receipt',{p_id:id,p_fingerprint:'test'}),args.p_response);
+    assert.equal(await rpc(db,'receipt',{p_id:id,p_fingerprint:'changed'}),null);
     assert.deepEqual((await rpc(db,'claim',{p_id:id,p_lease:randomUUID(),p_fingerprint:'test'})).response,args.p_response);
     const deletionId=randomUUID(),deletionLease=randomUUID();
     await rpc(db,'claim',{p_id:deletionId,p_lease:deletionLease,p_fingerprint:'delete'});
