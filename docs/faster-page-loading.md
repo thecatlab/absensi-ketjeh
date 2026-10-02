@@ -18,11 +18,11 @@ Attendance, photo uploads, other mutations, sync status, and manual synchronizat
 
 Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as server-only Vercel variables. Never prefix these with `VITE_`. Production uses the restaurant production project; Preview uses the isolated restaurant QA project. `VITE_APPS_SCRIPT_URL` must point to the matching environment's existing Apps Script deployment.
 
-`VITE_QA_TIMING=true` is enabled only in Preview. It includes a small measurement helper that publishes anonymous durations into a DOM attribute for QA; it records no credentials or page content and writes no persistent storage or network logs. The helper is absent from the production bundle. Use `npm run dev:mock` for local mock data; use `vercel dev` with explicitly configured QA variables when testing the real API locally.
+`VITE_QA_TIMING=true` is enabled only in Preview. It includes a small measurement helper that publishes anonymous durations into a DOM attribute for QA; it records no credentials or page content and writes no persistent storage or network logs. The helper is absent from the production bundle. Demo data and demo credential checks are also excluded from every production build, even if the mock flag is accidentally enabled; an artifact-level regression test enforces this. Use `npm run dev:mock` for local mock data; use `vercel dev` with explicitly configured QA variables when testing the real API locally.
 
 ## Verification on 2 October 2026
 
-- 61 automated tests pass, plus lint and production build.
+- 62 automated tests pass, plus lint and production build.
 - All 58 live QA response comparisons match the previous backend, including admin/manager/employee permissions, unauthorized reads, inactive employees, ordering, date filters, reports, and credential redaction. Every new response has `no-store`.
 - 42 QA workflow checks pass: employee edits, PIN changes and restoration, inactive login rejection, photo attendance, retry receipts, tasks, briefing photos, reservations, announcements, notes, shifts, and Sheets reconciliation. Every record present before these tests remained unchanged; new fixtures stayed in QA.
 - Browser checks cover employee login, dashboard, history, reservations, switching, all admin tabs, confirmed note saves, logout, changed-PIN rejection, and stale-data warnings. Synthetic photo/GPS clock-in and clock-out use the unchanged submission backend. No personal camera image or real location was captured.
@@ -46,7 +46,7 @@ Same Mac and connection, authenticated QA preview. Initial samples are full page
 | Cached history return | 20 | p95 46 ms | p95 <200 ms |
 | Cached reservations return | 20 | p95 45 ms | p95 <200 ms |
 
-These are measured QA results, not a guarantee for every device or connection. The final correctness preview is `dpl_7LASp4ZhvoUbjjJLLTjg3SHbFFq7`.
+These are measured QA results, not a guarantee for every device or connection. The measured correctness preview is `dpl_7LASp4ZhvoUbjjJLLTjg3SHbFFq7`.
 
 ## Backup and rollback
 

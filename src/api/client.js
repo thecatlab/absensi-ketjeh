@@ -20,9 +20,8 @@ const GAS_URL = CONFIG.APPS_SCRIPT_URL;
 const READ_URL = '/api/read';
 const CONFIGURATION_ERROR = 'Konfigurasi server belum disetel. Hubungi admin.';
 
-function shouldUseMock() {
-  return import.meta.env.VITE_USE_MOCKS === 'true' || (import.meta.env.DEV && !GAS_URL);
-}
+// Keep demo data and demo credentials out of every production bundle.
+const USE_MOCKS = import.meta.env.DEV && (import.meta.env.VITE_USE_MOCKS === 'true' || !GAS_URL);
 
 function configurationError() {
   return { success: false, error: CONFIGURATION_ERROR };
@@ -161,7 +160,7 @@ function normalizeClockData(data) {
 // ============================================================
 
 export async function getKaryawan() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     return { success: true, data: MOCK_EMPLOYEES };
   }
@@ -169,7 +168,7 @@ export async function getKaryawan() {
 }
 
 export async function cekStatusHariIni(karyawanId) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(200);
     const record = MOCK_ABSENSI_TODAY.find(a => a.karyawan_id === karyawanId);
     if (!record) {
@@ -187,7 +186,7 @@ export async function clockIn(data) {
   const normalized = normalizeClockData(data);
   if (normalized.error) return { success: false, error: normalized.error };
 
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(1000);
     if (String(normalized.data.pin) !== String(MOCK_PIN)) {
       return { error: 'PIN salah' };
@@ -202,7 +201,7 @@ export async function clockOut(data) {
   const normalized = normalizeClockData(data);
   if (normalized.error) return { success: false, error: normalized.error };
 
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(1000);
     if (String(normalized.data.pin) !== String(MOCK_PIN)) {
       return { error: 'PIN salah' };
@@ -214,7 +213,7 @@ export async function clockOut(data) {
 }
 
 export async function getAbsensiHariIni() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(200);
     return { success: true, data: MOCK_ABSENSI_TODAY };
   }
@@ -222,7 +221,7 @@ export async function getAbsensiHariIni() {
 }
 
 export async function getAbsensi(dari, sampai, karyawanId) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(400);
     let data = karyawanId ? generateMockHistory(karyawanId) : [];
     return { success: true, data };
@@ -233,7 +232,7 @@ export async function getAbsensi(dari, sampai, karyawanId) {
 }
 
 export async function getPengaturan() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(100);
     return { success: true, data: MOCK_SETTINGS };
   }
@@ -245,7 +244,7 @@ export async function getPengaturan() {
 // ============================================================
 
 export async function verifyEmployeePin(karyawanId, pin, includeDashboard = false) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const emp = MOCK_EMPLOYEES.find(e => e.id === karyawanId);
     const expectedPin = emp?.pin || MOCK_PIN;
@@ -262,7 +261,7 @@ export async function verifyEmployeePin(karyawanId, pin, includeDashboard = fals
 // ============================================================
 
 export async function adminLogin(password, includeDashboard = false) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     if (password === MOCK_ADMIN_PASSWORD) {
       return { success: true, role: 'admin' };
@@ -276,7 +275,7 @@ export async function adminLogin(password, includeDashboard = false) {
 }
 
 export async function getDashboardData() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const todayRecords = MOCK_ABSENSI_TODAY;
     const totalKaryawan = MOCK_EMPLOYEES.length;
@@ -303,7 +302,7 @@ export async function getDashboardData() {
 }
 
 export async function getBootstrap() {
-  if (!shouldUseMock()) return fastRead('bootstrap');
+  if (!USE_MOCKS) return fastRead('bootstrap');
   const [employees, settings, jabatan] = await Promise.all([getKaryawan(), getPengaturan(), getJabatan()]);
   return { success: true, data: { employees: employees.data, settings: settings.data, jabatan: jabatan.data } };
 }
@@ -312,7 +311,7 @@ export async function readQuery(action, params = {}) {
   const readers = {
     bootstrap: getBootstrap,
     getAdminDashboard: getDashboardData,
-    getEmployeeDashboard: () => getEmployeeDashboard((shouldUseMock() && MOCK_EMPLOYEES.find(employee => employee.id === params.karyawan_id)) || { id: params.karyawan_id }),
+    getEmployeeDashboard: () => getEmployeeDashboard((USE_MOCKS && MOCK_EMPLOYEES.find(employee => employee.id === params.karyawan_id)) || { id: params.karyawan_id }),
     getAbsensi: () => getAbsensi(params.dari, params.sampai, params.karyawan_id),
     getReport: () => getReport(params.dari, params.sampai, params.karyawan_id),
     getAllEmployees: getAdminEmployees,
@@ -333,7 +332,7 @@ function getMockEmployees() {
 }
 
 export async function getJabatan() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(100);
     return { success: true, data: MOCK_JABATAN.filter(j => j.aktif).map(j => j.jabatan).sort() };
   }
@@ -341,7 +340,7 @@ export async function getJabatan() {
 }
 
 export async function getAllEmployees() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     return { success: true, data: getMockEmployees() };
   }
@@ -349,7 +348,7 @@ export async function getAllEmployees() {
 }
 
 export async function getAdminEmployees(password) {
-  if (shouldUseMock()) return getAllEmployees();
+  if (USE_MOCKS) return getAllEmployees();
   const res = await gasPost('getAllEmployees', { password });
   if (res.success) {
     res.data = res.data.map(employee => ({
@@ -361,7 +360,7 @@ export async function getAdminEmployees(password) {
 }
 
 export async function addEmployee(data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(500);
     if (!MOCK_JABATAN.some(j => j.aktif && j.jabatan === data.jabatan)) {
       return { error: 'Jabatan tidak aktif atau tidak terdaftar.' };
@@ -387,7 +386,7 @@ export async function addEmployee(data, password) {
 }
 
 export async function updateEmployee(id, data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(500);
     const emps = getMockEmployees();
     const idx = emps.findIndex(e => e.id === id);
@@ -408,7 +407,7 @@ export async function updateEmployee(id, data, password) {
 }
 
 export async function deactivateEmployee(id, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const emps = getMockEmployees();
     const idx = emps.findIndex(e => e.id === id);
@@ -436,7 +435,7 @@ function getMockShiftKhusus() {
 }
 
 export async function updateSettings(newSettings, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(400);
     const s = getMockSettings();
     Object.assign(s, newSettings);
@@ -446,7 +445,7 @@ export async function updateSettings(newSettings, password) {
 }
 
 export async function getShiftKhusus() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     return { success: true, data: getMockShiftKhusus() };
   }
@@ -454,7 +453,7 @@ export async function getShiftKhusus() {
 }
 
 export async function addShiftKhusus(data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(400);
     const shifts = getMockShiftKhusus();
     // Prevent duplicate date
@@ -475,7 +474,7 @@ export async function addShiftKhusus(data, password) {
 }
 
 export async function deleteShiftKhusus(tanggal, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const shifts = getMockShiftKhusus();
     const idx = shifts.findIndex(s => s.tanggal === tanggal);
@@ -509,7 +508,7 @@ function getMockNotes() {
 }
 
 export async function getAdminNotes() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     return { success: true, data: getMockNotes() };
   }
@@ -517,7 +516,7 @@ export async function getAdminNotes() {
 }
 
 export async function addAdminNote(data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(400);
     const notes = getMockNotes();
     const now = new Date();
@@ -537,7 +536,7 @@ export async function addAdminNote(data, password) {
 }
 
 export async function deleteAdminNote(noteId, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const notes = getMockNotes();
     const idx = notes.findIndex(n => n.id === noteId);
@@ -676,7 +675,7 @@ function getMockClockStatus(employee) {
 }
 
 export async function getEmployeeDashboard(employee) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const todayKey = getTodayKey();
     const completions = readTodoCompletions();
@@ -707,7 +706,7 @@ export async function getEmployeeDashboard(employee) {
 }
 
 export async function setTodoStatus(todoId, employee, selesai) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(200);
     const todayKey = getTodayKey();
     const completions = readTodoCompletions();
@@ -726,7 +725,7 @@ export async function setTodoStatus(todoId, employee, selesai) {
 }
 
 export async function uploadBriefingPhoto(employee, fotoBase64) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(500);
     const todayKey = getTodayKey();
     const idx = MOCK_BRIEFING_PHOTOS.findIndex(p => p.tanggal === todayKey && String(p.karyawan_id) === String(employee.id));
@@ -756,7 +755,7 @@ export async function uploadBriefingPhoto(employee, fotoBase64) {
 // ============================================================
 
 export async function getPengumumanAdmin() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     return { success: true, data: getMockPengumuman() };
   }
@@ -764,7 +763,7 @@ export async function getPengumumanAdmin() {
 }
 
 export async function addPengumuman(data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(350);
     getMockPengumuman().push({
       id: 'P' + String(Date.now()).slice(-6),
@@ -777,7 +776,7 @@ export async function addPengumuman(data, password) {
 }
 
 export async function deletePengumuman(id, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     const data = getMockPengumuman();
     const idx = data.findIndex(item => item.id === id);
@@ -788,7 +787,7 @@ export async function deletePengumuman(id, password) {
 }
 
 export async function updatePengumumanStatus(id, aktif, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     const data = getMockPengumuman();
     const item = data.find(row => row.id === id);
@@ -800,7 +799,7 @@ export async function updatePengumumanStatus(id, aktif, password) {
 }
 
 export async function updatePengumuman(id, data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(350);
     const rows = getMockPengumuman();
     const idx = rows.findIndex(item => item.id === id);
@@ -812,7 +811,7 @@ export async function updatePengumuman(id, data, password) {
 }
 
 export async function getReservasiAdmin() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     return { success: true, data: getMockReservasi() };
   }
@@ -820,7 +819,7 @@ export async function getReservasiAdmin() {
 }
 
 export async function addReservasi(data, password, employeeAuth) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(350);
     getMockReservasi().push({
       id: 'R' + String(Date.now()).slice(-6),
@@ -833,7 +832,7 @@ export async function addReservasi(data, password, employeeAuth) {
 }
 
 export async function updateReservasi(id, data, password, employeeAuth) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(350);
     const rows = getMockReservasi();
     const idx = rows.findIndex(item => item.id === id);
@@ -845,7 +844,7 @@ export async function updateReservasi(id, data, password, employeeAuth) {
 }
 
 export async function deleteReservasi(id, password, employeeAuth) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     const data = getMockReservasi();
     const idx = data.findIndex(item => item.id === id);
@@ -856,7 +855,7 @@ export async function deleteReservasi(id, password, employeeAuth) {
 }
 
 export async function getTodosAdmin() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     return { success: true, data: getMockTodos() };
   }
@@ -864,7 +863,7 @@ export async function getTodosAdmin() {
 }
 
 export async function addTodo(data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(350);
     getMockTodos().push({
       id: 'T' + String(Date.now()).slice(-6),
@@ -877,7 +876,7 @@ export async function addTodo(data, password) {
 }
 
 export async function updateTodo(id, data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(350);
     const rows = getMockTodos();
     const idx = rows.findIndex(item => item.id === id);
@@ -889,7 +888,7 @@ export async function updateTodo(id, data, password) {
 }
 
 export async function deleteTodo(id, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     const data = getMockTodos();
     const idx = data.findIndex(item => item.id === id);
@@ -904,7 +903,7 @@ export async function deleteTodo(id, password) {
 // ============================================================
 
 export async function getReport(dari, sampai, karyawanId, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(400);
     // Generate mock report data across the date range
     const emps = getMockEmployees();
@@ -985,21 +984,21 @@ function delay(ms) {
 }
 
 export async function getJabatanAdmin() {
-  if (shouldUseMock()) return { success: true, data: MOCK_JABATAN };
+  if (USE_MOCKS) return { success: true, data: MOCK_JABATAN };
   return gasPost('getJabatanAdmin');
 }
 
 export async function saveJabatan(jabatan, aktif, password) {
-  if (shouldUseMock()) return { error: 'Perubahan katalog memerlukan server QA.' };
+  if (USE_MOCKS) return { error: 'Perubahan katalog memerlukan server QA.' };
   return gasPost('simpanJabatan', { jabatan, aktif, password });
 }
 
 export async function getSyncStatus() {
-  if (shouldUseMock()) return { success: true, data: { configured: false } };
+  if (USE_MOCKS) return { success: true, data: { configured: false } };
   return gasPost('getSyncStatus');
 }
 
 export async function syncSheets(password) {
-  if (shouldUseMock()) return { error: 'Sinkronisasi memerlukan server QA.' };
+  if (USE_MOCKS) return { error: 'Sinkronisasi memerlukan server QA.' };
   return gasPost('syncSheets', { password });
 }
