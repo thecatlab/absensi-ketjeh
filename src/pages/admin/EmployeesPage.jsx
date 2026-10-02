@@ -1,15 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useRead, useBootstrap } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
 import Modal from '../../components/Modal';
 import EmployeeForm from '../../components/EmployeeForm';
 import SettingsPanel from './SettingsPanel';
-import { getAdminEmployees, getJabatan, getPengaturan, addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
+import { addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
 
-export default function EmployeesPage({ adminPassword, catalogRevision }) {
-  const [employees, setEmployees] = useState([]);
-  const [settings, setSettings] = useState(null);
-  const [jabatanOptions, setJabatanOptions] = useState([]);
-  const [loadError, setLoadError] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function EmployeesPage({ adminPassword }) {
+  const query = useRead('getAllEmployees');
+  const reference = useBootstrap();
+  const employees = query.data?.data || [];
+  const settings = reference.data?.data.settings;
+  const jabatanOptions = reference.data?.data.jabatan || [];
+  const loading = query.loading || reference.loading;
+  const loadError = !loading && !query.error && !reference.error && jabatanOptions.length === 0
+    ? 'Belum ada jabatan aktif. Tambahkan jabatan melalui admin.' : null;
   const [activeView, setActiveView] = useState('employees');
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -18,31 +23,7 @@ export default function EmployeesPage({ adminPassword, catalogRevision }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
 
-  const loadEmployees = useCallback(() => {
-    setLoading(true);
-    setLoadError(null);
-    return Promise.all([getAdminEmployees(adminPassword), getJabatan(), getPengaturan()])
-      .then(([employeesRes, jabatanRes, settingsRes]) => {
-        if (employeesRes.success) setEmployees(employeesRes.data);
-        if (settingsRes.success) setSettings(settingsRes.data);
-        setJabatanOptions(jabatanRes.success ? jabatanRes.data : []);
-        if (!employeesRes.success || !jabatanRes.success) {
-          setLoadError(employeesRes.error || jabatanRes.error || 'Data karyawan gagal dimuat.');
-        } else if (jabatanRes.data.length === 0) {
-          setLoadError('Belum ada jabatan aktif. Tambahkan jabatan melalui admin.');
-        }
-      })
-      .catch(() => {
-        setJabatanOptions([]);
-        setLoadError('Data karyawan atau jabatan gagal dimuat. Coba lagi.');
-      })
-      .finally(() => setLoading(false));
-  }, [adminPassword]);
-
-  useEffect(() => {
-    const timer = setTimeout(loadEmployees, 0);
-    return () => clearTimeout(timer);
-  }, [loadEmployees, catalogRevision]);
+  const loadEmployees = () => Promise.allSettled([query.refresh(), reference.refresh()]);
 
   function showMessage(text, isError = false) {
     setMessage({ text, isError });
@@ -106,6 +87,7 @@ export default function EmployeesPage({ adminPassword, catalogRevision }) {
 
   return (
     <div>
+      <ReadNotice query={query} />
       {loadError && (
         <div role="alert" className="mb-4 px-4 py-2.5 rounded-xl text-sm bg-danger/10 text-danger">
           {loadError}

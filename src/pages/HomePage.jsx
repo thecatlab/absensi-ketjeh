@@ -1,17 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useBootstrap } from '../api/useRead'
 import EmployeeSelect from '../components/EmployeeSelect'
 import EmployeeDashboardPage from './EmployeeDashboardPage'
-import { getPengaturan, verifyEmployeePin } from '../api/client'
+import { verifyEmployeePin } from '../api/client'
 
 export default function HomePage({ employees, selectedEmployee, onSelectEmployee, verifiedAccess, onPinVerified, loading }) {
-  const [settings, setSettings] = useState({ shift_mulai: '08:00', shift_selesai: '17:00' })
-
-  // Fetch settings on mount
-  useEffect(() => {
-    getPengaturan().then(res => {
-      if (res.success) setSettings(res.data)
-    })
-  }, [])
+  const settings = useBootstrap().data?.data.settings || { shift_mulai: '08:00', shift_selesai: '17:00' }
 
   const isVerified = selectedEmployee && verifiedAccess?.employeeId === selectedEmployee.id
 
@@ -32,7 +26,7 @@ export default function HomePage({ employees, selectedEmployee, onSelectEmployee
       </div>
 
       {selectedEmployee && !isVerified && (
-        <PinGate employee={selectedEmployee} onVerified={onPinVerified} />
+        <PinGate key={selectedEmployee.id} employee={selectedEmployee} onVerified={onPinVerified} />
       )}
 
       {selectedEmployee && isVerified && (
@@ -72,7 +66,7 @@ function PinGate({ employee, onVerified }) {
     if (pin.length < 4 || checking) return
     setChecking(true)
     setError(null)
-    const res = await verifyEmployeePin(employee.id, pin)
+    const res = await verifyEmployeePin(employee.id, pin, true)
     setChecking(false)
     if (res.error) {
       setError(res.error)
@@ -82,7 +76,7 @@ function PinGate({ employee, onVerified }) {
       setError('PIN salah')
       return
     }
-    onVerified(employee, pin)
+    onVerified(employee, pin, res.dashboard)
   }
 
   return (

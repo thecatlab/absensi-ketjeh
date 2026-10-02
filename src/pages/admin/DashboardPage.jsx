@@ -1,27 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
-import { getDashboardData, getPengaturan } from '../../api/client';
+import { useState } from 'react';
+import { useRead, useBootstrap } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
 import { extractTime, getArrivalStatus } from '../../utils/attendanceStatus';
 
 export default function DashboardPage({ role }) {
-  const [data, setData] = useState(null);
-  const [settings, setSettings] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const query = useRead('getAdminDashboard');
+  const { data, loading } = query;
+  const reference = useBootstrap();
+  const settings = data?.settings || reference.data?.data.settings;
   const [selectedRecord, setSelectedRecord] = useState(null);
-
-  const loadData = useCallback(() => {
-    setLoading(true);
-    Promise.all([getDashboardData(), getPengaturan()])
-      .then(([dashboardRes, settingsRes]) => {
-        if (dashboardRes.success) setData(dashboardRes);
-        if (settingsRes.success) setSettings(settingsRes.data);
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(loadData, 0);
-    return () => clearTimeout(timer);
-  }, [loadData]);
+  const loadData = () => query.refresh().catch(() => {});
 
   const todayStr = new Date().toLocaleDateString('id-ID', {
     timeZone: 'Asia/Jakarta',
@@ -45,6 +33,7 @@ export default function DashboardPage({ role }) {
 
   return (
     <div>
+      <ReadNotice query={query} />
       {/* Date + refresh */}
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs text-gray-400 capitalize">{todayStr}</p>

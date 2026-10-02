@@ -1,4 +1,5 @@
 import { CONFIG } from '../config';
+import { invalidateReads, resetReadSession, seedRead, readSession } from './readCache.mjs';
 import {
   MOCK_EMPLOYEES,
   MOCK_JABATAN,
@@ -16,6 +17,7 @@ import {
 } from './mockData';
 
 const GAS_URL = CONFIG.APPS_SCRIPT_URL;
+const READ_URL = '/api/read';
 const CONFIGURATION_ERROR = 'Konfigurasi server belum disetel. Hubungi admin.';
 
 function shouldUseMock() {
@@ -35,11 +37,48 @@ const employeeActions = new Set(['clockIn', 'clockOut', 'getAbsensi', 'cekStatus
 export function setEmployeeCredential(employeeId, pin) {
   pendingWrites.clear();
   employeeCredential = employeeId && pin ? { karyawan_id: employeeId, pin } : null;
+  resetReadSession();
 }
 
 export function setAdminCredential(password) {
   pendingWrites.clear();
   adminCredential = password || '';
+  resetReadSession();
+}
+
+export function readScope(action) {
+  if (publicReads.has(action) || action === 'bootstrap') return 'public';
+  const auth = requestCredentials(action, {});
+  return auth.password ? 'admin' : 'employee:' + (auth.karyawan_id || 'anonymous');
+}
+
+export function seedDashboard(dashboard, employeeId) {
+  seedRead(employeeId ? 'getEmployeeDashboard' : 'getAdminDashboard', employeeId ? { karyawan_id: employeeId } : {}, dashboard,
+    readScope(employeeId ? 'getEmployeeDashboard' : 'getAdminDashboard'));
+}
+
+async function fastRead(action, body = {}) {
+  body = Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined));
+  const auth = publicReads.has(action) || action === 'bootstrap' ? {} : requestCredentials(action, body);
+  const scope = readScope(action);
+  const capturedSession = readSession();
+  const capturedEmployee = employeeCredential;
+  const capturedAdmin = adminCredential;
+  try {
+    const response = await fetch(READ_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...auth, ...body, action }), cache: 'no-store' });
+    const result = await response.json();
+    if (scope !== 'public' && capturedSession !== readSession()) return { error: 'Sesi telah berubah. Silakan coba lagi.' };
+    if (!result || typeof result !== 'object' || (!result.success && !result.error)) return { error: 'Jawaban server tidak lengkap. Silakan coba lagi.' };
+    if (result.code === 'AUTH_REQUIRED' && scope === readScope(action) && capturedEmployee === employeeCredential && capturedAdmin === adminCredential) {
+      if (scope === 'admin') adminCredential = '';
+      else employeeCredential = null;
+      pendingWrites.clear();
+      resetReadSession();
+      window.dispatchEvent(new CustomEvent('ketjeh-auth-expired', { detail: { scope } }));
+    }
+    return result;
+  } catch { return { error: 'Koneksi terputus. Silakan coba lagi.' }; }
 }
 
 function requestCredentials(action, body) {
@@ -59,19 +98,11 @@ async function readResponse(response) {
 }
 
 async function gasGet(action, params = {}) {
-  if (!GAS_URL) return configurationError();
-  if (!publicReads.has(action)) return gasPost(action, params);
-  try {
-    const url = new URL(GAS_URL);
-    url.searchParams.set('action', action);
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    return await readResponse(await fetch(url.toString()));
-  } catch {
-    return { error: 'Koneksi terputus. Silakan coba lagi.' };
-  }
+  return action === 'getSyncStatus' ? gasPost(action, params) : fastRead(action, params);
 }
 
 async function gasPost(action, body = {}) {
+  if (/^(get|cek|download|verify|adminLogin)/.test(action) && action !== 'getSyncStatus') return fastRead(action, body);
   if (!GAS_URL) return configurationError();
   const payload = { ...requestCredentials(action, body), ...body, action };
   const mutation = !/^(get|cek|download|verify|adminLogin|syncSheets)/.test(action);
@@ -88,7 +119,10 @@ async function gasPost(action, body = {}) {
       const result = await readResponse(await fetch(GAS_URL, {
         method: 'POST', body: JSON.stringify(payload),
       }));
-      if (result.success && pending) pendingWrites.delete(fingerprint);
+      if (result.success && pending) {
+        pendingWrites.delete(fingerprint);
+        invalidateReads(action);
+      }
       return result;
     } catch {
       return { error: mutation
@@ -210,7 +244,7 @@ export async function getPengaturan() {
 // PIN Verification (Employee)
 // ============================================================
 
-export async function verifyEmployeePin(karyawanId, pin) {
+export async function verifyEmployeePin(karyawanId, pin, includeDashboard = false) {
   if (shouldUseMock()) {
     await delay(300);
     const emp = MOCK_EMPLOYEES.find(e => e.id === karyawanId);
@@ -220,14 +254,14 @@ export async function verifyEmployeePin(karyawanId, pin) {
     }
     return { success: true, verified: false };
   }
-  return gasPost('verifyPin', { karyawan_id: karyawanId, pin });
+  return gasPost('verifyPin', { karyawan_id: karyawanId, pin, include_dashboard: includeDashboard });
 }
 
 // ============================================================
 // Admin API Functions
 // ============================================================
 
-export async function adminLogin(password) {
+export async function adminLogin(password, includeDashboard = false) {
   if (shouldUseMock()) {
     await delay(300);
     if (password === MOCK_ADMIN_PASSWORD) {
@@ -238,7 +272,7 @@ export async function adminLogin(password) {
     }
     return { error: 'Password salah' };
   }
-  return gasPost('adminLogin', { password });
+  return gasPost('adminLogin', { password, include_dashboard: includeDashboard });
 }
 
 export async function getDashboardData() {
@@ -265,20 +299,27 @@ export async function getDashboardData() {
       records: todayRecords,
     };
   }
-  // Real API: combine getAbsensiHariIni + getKaryawan
-  const [absensi, karyawan] = await Promise.all([
-    gasGet('getAbsensiHariIni'),
-    gasGet('getKaryawan'),
-  ]);
-  if (absensi.error || karyawan.error) return { error: absensi.error || karyawan.error };
-  const records = absensi.data || [];
-  const totalKaryawan = (karyawan.data || []).length;
-  const hadir = records.length;
-  return {
-    success: true,
-    summary: { totalKaryawan, hadir, belumHadir: totalKaryawan - hadir, terlambat: 0, sudahKeluar: 0 },
-    records,
+  return fastRead('getAdminDashboard');
+}
+
+export async function getBootstrap() {
+  if (!shouldUseMock()) return fastRead('bootstrap');
+  const [employees, settings, jabatan] = await Promise.all([getKaryawan(), getPengaturan(), getJabatan()]);
+  return { success: true, data: { employees: employees.data, settings: settings.data, jabatan: jabatan.data } };
+}
+
+export async function readQuery(action, params = {}) {
+  const readers = {
+    bootstrap: getBootstrap,
+    getAdminDashboard: getDashboardData,
+    getEmployeeDashboard: () => getEmployeeDashboard((shouldUseMock() && MOCK_EMPLOYEES.find(employee => employee.id === params.karyawan_id)) || { id: params.karyawan_id }),
+    getAbsensi: () => getAbsensi(params.dari, params.sampai, params.karyawan_id),
+    getReport: () => getReport(params.dari, params.sampai, params.karyawan_id),
+    getAllEmployees: getAdminEmployees,
+    getKaryawan, getPengaturan, getJabatan, getJabatanAdmin, getShiftKhusus,
+    getAdminNotes, getReservasiAdmin, getTodosAdmin, getPengumumanAdmin,
   };
+  return readers[action] ? readers[action]() : { error: 'Permintaan baca tidak valid.' };
 }
 
 // ============================================================

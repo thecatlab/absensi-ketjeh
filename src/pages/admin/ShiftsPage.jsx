@@ -1,24 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useRead } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
+import { useState } from 'react';
 import Modal from '../../components/Modal';
-import { getShiftKhusus, addShiftKhusus, deleteShiftKhusus } from '../../api/client';
+import { addShiftKhusus, deleteShiftKhusus } from '../../api/client';
 
 export default function ShiftsPage({ adminPassword }) {
-  const [shifts, setShifts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const query = useRead('getShiftKhusus');
+  const shifts = query.data?.data || [];
+  const loading = query.loading;
   const [showAddModal, setShowAddModal] = useState(false);
   const [message, setMessage] = useState(null);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    const shiftsRes = await getShiftKhusus();
-    if (shiftsRes.success) setShifts(shiftsRes.data);
-    setLoading(false);
-  }, []);
+  const loadAll = () => query.refresh().catch(() => {});
 
-  useEffect(() => {
-    const timer = setTimeout(loadAll, 0);
-    return () => clearTimeout(timer);
-  }, [loadAll]);
 
   function showMsg(text, isError = false) {
     setMessage({ text, isError });
@@ -42,6 +36,7 @@ export default function ShiftsPage({ adminPassword }) {
 
   return (
     <div>
+      <ReadNotice query={query} />
       {message && (
         <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-medium ${
           message.isError ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'

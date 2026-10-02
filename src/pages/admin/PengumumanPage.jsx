@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
-import { addPengumuman, deletePengumuman, getAllEmployees, getJabatan, getPengumumanAdmin, updatePengumuman, updatePengumumanStatus } from '../../api/client';
+import { useRead, useBootstrap } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
+import { useState } from 'react';
+import { addPengumuman, deletePengumuman, updatePengumuman, updatePengumumanStatus } from '../../api/client';
 
 export default function PengumumanPage({ adminPassword, role }) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-  const [items, setItems] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [roleOptions, setRoleOptions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const query = useRead('getPengumumanAdmin');
+  const reference = useBootstrap();
+  const items = query.data?.data || [];
+  const employees = reference.data?.data.employees || [];
+  const roleOptions = reference.data?.data.jabatan || [];
+  const loading = query.loading;
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [roleFilter, setRoleFilter] = useState('all');
@@ -21,24 +25,7 @@ export default function PengumumanPage({ adminPassword, role }) {
     target_value: '',
   });
 
-  const loadItems = useCallback(() => {
-    setLoading(true);
-    getPengumumanAdmin()
-      .then(res => { if (res.success) setItems(res.data); })
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(loadItems, 0);
-    getAllEmployees().then(res => { if (res.success) setEmployees(res.data); });
-    getJabatan()
-      .then(res => {
-        if (res.success) setRoleOptions(res.data);
-        else setMessage({ text: res.error || 'Jabatan gagal dimuat.', isError: true });
-      })
-      .catch(() => setMessage({ text: 'Jabatan gagal dimuat.', isError: true }));
-    return () => clearTimeout(timer);
-  }, [loadItems]);
+  const loadItems = () => query.refresh().catch(() => {});
 
   function showMessage(text, isError = false) {
     setMessage({ text, isError });
@@ -115,12 +102,13 @@ export default function PengumumanPage({ adminPassword, role }) {
       showMessage(res.error, true);
     } else {
       showMessage(nextActive ? 'Pengumuman ditampilkan' : 'Pengumuman disembunyikan');
-      setItems(prev => prev.map(row => row.id === item.id ? { ...row, aktif: nextActive } : row));
+      loadItems();
     }
   }
 
   return (
     <div>
+      <ReadNotice query={query} />
       {message && (
         <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-medium ${
           message.isError ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'

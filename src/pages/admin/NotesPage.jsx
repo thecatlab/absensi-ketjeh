@@ -1,24 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { getAdminNotes, addAdminNote, deleteAdminNote } from '../../api/client';
+import { useRead } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
+import { useEffect, useRef, useState } from 'react';
+import { addAdminNote, deleteAdminNote } from '../../api/client';
+
+const EMPTY = [];
 
 export default function NotesPage({ adminPassword, role }) {
-  const [notes, setNotes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const query = useRead('getAdminNotes');
+  const notes = query.data?.data || EMPTY;
+  const loading = query.loading;
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef(null);
 
-  const loadNotes = useCallback(async () => {
-    setLoading(true);
-    const res = await getAdminNotes();
-    if (res.success) setNotes(res.data);
-    setLoading(false);
-  }, []);
+  const loadNotes = () => query.refresh().catch(() => {});
 
-  useEffect(() => {
-    const timer = setTimeout(loadNotes, 0);
-    return () => clearTimeout(timer);
-  }, [loadNotes]);
 
   useEffect(() => {
     // Scroll to bottom when notes change
@@ -59,6 +55,7 @@ export default function NotesPage({ adminPassword, role }) {
 
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 220px)', minHeight: '400px' }}>
+      <ReadNotice query={query} />
       {/* Header */}
       <div className="mb-3">
         <p className="text-xs text-gray-400">

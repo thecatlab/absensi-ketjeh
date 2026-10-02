@@ -13,13 +13,13 @@ export default function AdminLogin({ onLogin }) {
     setLoading(true);
     setError(null);
 
-    const res = await adminLogin(password);
+    const res = await adminLogin(password, true);
     setLoading(false);
 
     if (res.error) {
       setError(res.error);
     } else if (res.success) {
-      onLogin(res.role, password);
+      onLogin(res.role, password, res.dashboard);
     }
   }
 

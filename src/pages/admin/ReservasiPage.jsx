@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { addReservasi, deleteReservasi, getReservasiAdmin, updateReservasi } from '../../api/client';
+import { useRead } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
+import { useState } from 'react';
+import { addReservasi, deleteReservasi, updateReservasi } from '../../api/client';
 
 export default function ReservasiPage({ adminPassword, employeeAuth, canManage = true, startFormOpen = true }) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-  const [items, setItems] = useState([]);
+  const query = useRead('getReservasiAdmin');
+  const items = query.data?.data || [];
+  const loading = query.loading;
   const [viewMode, setViewMode] = useState('calendar');
   const [showForm, setShowForm] = useState(startFormOpen);
   const [selectedDate, setSelectedDate] = useState(today);
@@ -11,8 +15,6 @@ export default function ReservasiPage({ adminPassword, employeeAuth, canManage =
   const [listDate, setListDate] = useState('');
   const [listSearch, setListSearch] = useState('');
   const [editingId, setEditingId] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [form, setForm] = useState({
@@ -25,21 +27,8 @@ export default function ReservasiPage({ adminPassword, employeeAuth, canManage =
     status: 'confirmed',
   });
 
-  const loadItems = useCallback(() => {
-    setLoading(true);
-    setLoadError(null);
-    getReservasiAdmin()
-      .then(res => {
-        if (res.success) setItems(res.data);
-        else setLoadError(res.error || 'Reservasi belum dapat dimuat. Silakan coba lagi.');
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const loadItems = () => query.refresh().catch(() => {});
 
-  useEffect(() => {
-    const timer = setTimeout(loadItems, 0);
-    return () => clearTimeout(timer);
-  }, [loadItems]);
 
   function showMessage(text, isError = false) {
     setMessage({ text, isError });
@@ -114,6 +103,7 @@ export default function ReservasiPage({ adminPassword, employeeAuth, canManage =
 
   return (
     <div>
+      <ReadNotice query={query} />
       {message && (
         <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-medium ${
           message.isError ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'
@@ -187,11 +177,6 @@ export default function ReservasiPage({ adminPassword, employeeAuth, canManage =
 
       {loading ? (
         <div className="h-20 bg-gray-100 rounded-xl animate-pulse" />
-      ) : loadError ? (
-        <div role="alert" className="bg-red-50 rounded-xl p-4 text-sm text-danger">
-          <p>{loadError}</p>
-          <button onClick={loadItems} className="mt-2 font-semibold">Coba lagi</button>
-        </div>
       ) : viewMode === 'calendar' ? (
         <CalendarView items={calendarItems} selectedDate={selectedDate} onSelectDate={setSelectedDate} onDelete={handleDelete} onEdit={handleEdit} canManage={canManage} />
       ) : (

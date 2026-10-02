@@ -1,4 +1,4 @@
-const CACHE_NAME = 'absensi-ketjeh-v2-supabase';
+const CACHE_NAME = 'absensi-ketjeh-v3-fast-reads';
 const STATIC_ASSETS = [
   '/',
   '/favicon.svg',
@@ -36,6 +36,7 @@ self.addEventListener('fetch', (event) => {
 
   // Skip non-GET requests
   if (request.method !== 'GET') return;
+  if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return;
 
   // Skip cross-origin API calls (Google Apps Script)
   if (url.origin !== self.location.origin) return;

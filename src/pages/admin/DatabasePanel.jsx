@@ -1,18 +1,20 @@
+import { useRead } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
 import { useCallback, useEffect, useState } from 'react';
-import { getJabatanAdmin, saveJabatan, getSyncStatus, syncSheets, updateSettings } from '../../api/client';
+import { saveJabatan, getSyncStatus, syncSheets, updateSettings } from '../../api/client';
 
-export default function DatabasePanel({ password, onLogout, onCatalogChanged }) {
-  const [roles, setRoles] = useState([]);
+export default function DatabasePanel({ password, onLogout }) {
+  const catalog = useRead('getJabatanAdmin');
+  const roles = catalog.data?.data || [];
   const [newRole, setNewRole] = useState('');
   const [status, setStatus] = useState(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [credentials, setCredentials] = useState({ admin_password: '', manager_password: '' });
   const load = useCallback(async () => {
-    const [catalog, sync] = await Promise.all([getJabatanAdmin(), getSyncStatus()]);
-    if (catalog.success) setRoles(catalog.data);
+    const sync = await getSyncStatus();
     if (sync.success) setStatus(sync.data);
-    if (catalog.error || sync.error) setMessage(catalog.error || sync.error);
+    if (sync.error) setMessage(sync.error);
   }, []);
   useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
 
@@ -21,7 +23,7 @@ export default function DatabasePanel({ password, onLogout, onCatalogChanged }) 
     const result = await saveJabatan(jabatan, aktif, password);
     setBusy(false);
     setMessage(result.error || result.message);
-    if (result.success) { setNewRole(''); load(); onCatalogChanged(); }
+    if (result.success) { setNewRole(''); catalog.refresh().catch(() => {}); }
   }
 
   async function saveCredentials(event) {
@@ -48,6 +50,7 @@ export default function DatabasePanel({ password, onLogout, onCatalogChanged }) 
 
   return (
     <div className="space-y-4 mt-6">
+      <ReadNotice query={catalog} />
       {message && <p role="status" className="text-sm bg-gray-50 rounded-xl p-3">{message}</p>}
       <section className="bg-gray-50 rounded-xl p-4 space-y-3">
         <h3 className="text-sm font-semibold">Jabatan</h3>

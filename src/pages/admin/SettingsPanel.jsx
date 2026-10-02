@@ -13,6 +13,7 @@ export default function SettingsPanel({ settings, jabatanOptions, adminPassword,
   const [form, setForm] = useState(() => buildForm(settings));
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const displayed = buildForm(settings);
 
   function update(field, value) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -47,24 +48,24 @@ export default function SettingsPanel({ settings, jabatanOptions, adminPassword,
             <p className="text-xs text-gray-400 mt-0.5">Jam kerja, GPS, dan akses staff</p>
           </div>
           {!editing && (
-            <button onClick={() => setEditing(true)} className="text-xs text-navy font-medium shrink-0">Edit</button>
+            <button onClick={() => { setForm(buildForm(settings)); setEditing(true); }} className="text-xs text-navy font-medium shrink-0">Edit</button>
           )}
         </div>
 
         {!editing ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <InfoItem label="Nama perusahaan" value={form.nama_perusahaan} />
-              <InfoItem label="Folder foto Drive" value={form.foto_folder_id || '-'} />
-              <InfoItem label="Jam Masuk" value={form.shift_mulai} />
-              <InfoItem label="Jam Keluar" value={form.shift_selesai} />
-              <InfoItem label="Toleransi" value={`${form.toleransi_terlambat_menit} menit`} />
-              <InfoItem label="Radius GPS" value={`${form.geofence_radius_meter} meter`} />
-              <InfoItem label="Latitude" value={form.geofence_lat || '-'} />
-              <InfoItem label="Longitude" value={form.geofence_lng || '-'} />
+              <InfoItem label="Nama perusahaan" value={displayed.nama_perusahaan} />
+              <InfoItem label="Folder foto Drive" value={displayed.foto_folder_id || '-'} />
+              <InfoItem label="Jam Masuk" value={displayed.shift_mulai} />
+              <InfoItem label="Jam Keluar" value={displayed.shift_selesai} />
+              <InfoItem label="Toleransi" value={`${displayed.toleransi_terlambat_menit} menit`} />
+              <InfoItem label="Radius GPS" value={`${displayed.geofence_radius_meter} meter`} />
+              <InfoItem label="Latitude" value={displayed.geofence_lat || '-'} />
+              <InfoItem label="Longitude" value={displayed.geofence_lng || '-'} />
             </div>
-            <PermissionSummary label="Foto Briefing" value={form.briefing_photo_roles} />
-            <PermissionSummary label="Tambah Reservasi" value={form.reservation_manage_roles} />
+            <PermissionSummary label="Foto Briefing" value={displayed.briefing_photo_roles} />
+            <PermissionSummary label="Tambah Reservasi" value={displayed.reservation_manage_roles} />
           </div>
         ) : (
           <div className="space-y-4">

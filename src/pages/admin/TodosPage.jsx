@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { addTodo, deleteTodo, getAllEmployees, getJabatan, getTodosAdmin, updateTodo } from '../../api/client';
+import { useRead, useBootstrap } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
+import { useMemo, useState } from 'react';
+import { addTodo, deleteTodo, updateTodo } from '../../api/client';
 
 const WEEKDAY_OPTIONS = [
   { value: '1', label: 'Senin' },
@@ -11,11 +13,15 @@ const WEEKDAY_OPTIONS = [
   { value: '0', label: 'Minggu' },
 ];
 
+const EMPTY = [];
+
 export default function TodosPage({ adminPassword }) {
-  const [items, setItems] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [roleOptions, setRoleOptions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const query = useRead('getTodosAdmin');
+  const reference = useBootstrap();
+  const items = query.data?.data || EMPTY;
+  const employees = reference.data?.data.employees || EMPTY;
+  const roleOptions = reference.data?.data.jabatan || [];
+  const loading = query.loading;
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [roleFilter, setRoleFilter] = useState('all');
@@ -34,24 +40,7 @@ export default function TodosPage({ adminPassword }) {
     aktif: true,
   });
 
-  const loadItems = useCallback(() => {
-    setLoading(true);
-    getTodosAdmin()
-      .then(res => { if (res.success) setItems(res.data); })
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(loadItems, 0);
-    getAllEmployees().then(res => { if (res.success) setEmployees(res.data); });
-    getJabatan()
-      .then(res => {
-        if (res.success) setRoleOptions(res.data);
-        else setMessage({ text: res.error || 'Jabatan gagal dimuat.', isError: true });
-      })
-      .catch(() => setMessage({ text: 'Jabatan gagal dimuat.', isError: true }));
-    return () => clearTimeout(timer);
-  }, [loadItems]);
+  const loadItems = () => query.refresh().catch(() => {});
 
   const filteredItems = useMemo(() => (
     roleFilter === 'all'
@@ -149,6 +138,7 @@ export default function TodosPage({ adminPassword }) {
 
   return (
     <div>
+      <ReadNotice query={query} />
       {message && (
         <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-medium ${
           message.isError ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'

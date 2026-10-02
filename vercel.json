@@ -1,6 +1,7 @@
 {
+  "regions": ["sin1"],
   "rewrites": [
-    { "source": "/((?!assets|favicon|icon-|manifest|sw).*)", "destination": "/index.html" }
+    { "source": "/((?!api(?:/|$)|assets|favicon|icon-|manifest|sw).*)", "destination": "/index.html" }
   ],
   "headers": [
     {

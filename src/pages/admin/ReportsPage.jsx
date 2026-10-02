@@ -1,38 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import Modal from '../../components/Modal';
 import PhotoDisplay from '../../components/PhotoDisplay';
-import { getReport, getAllEmployees, getPengaturan } from '../../api/client';
+import { useRead, useBootstrap } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
 import { addMinutes, compareRecordsByLatestInput, diffMinutes, extractTime, getArrivalStatus } from '../../utils/attendanceStatus';
 import { arrayToCSV, downloadCSV } from '../../utils/csvExport';
 
-export default function ReportsPage({ adminPassword }) {
-  const [employees, setEmployees] = useState([]);
+export default function ReportsPage() {
+  const reference = useBootstrap();
+  const employees = reference.data?.data.employees || [];
+  const settings = reference.data?.data.settings;
   const [dari, setDari] = useState(getDefaultDari());
   const [sampai, setSampai] = useState(getDefaultSampai());
   const [karyawanId, setKaryawanId] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [activeQuick, setActiveQuick] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [settings, setSettings] = useState(null);
-
-  const loadReport = useCallback(() => {
-    setLoading(true);
-    getReport(dari, sampai, karyawanId || null, adminPassword)
-      .then(res => { if (res.success) setData(res); })
-      .finally(() => setLoading(false));
-  }, [adminPassword, dari, karyawanId, sampai]);
-
-  useEffect(() => {
-    getAllEmployees().then(res => { if (res.success) setEmployees(res.data); });
-    getPengaturan().then(res => { if (res.success) setSettings(res.data); });
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(loadReport, 0);
-    return () => clearTimeout(timer);
-  }, [loadReport]);
+  const query = useRead('getReport', { dari, sampai, karyawan_id: karyawanId });
+  const { data, loading } = query;
 
   function handleExport() {
     const exportRecords = getFilteredRecords(data?.data || [], statusFilter, settings);
@@ -105,6 +90,7 @@ export default function ReportsPage({ adminPassword }) {
 
   return (
     <div>
+      <ReadNotice query={query} />
       {/* Quick Date Buttons */}
       <div className="grid grid-cols-2 min-[420px]:grid-cols-4 gap-2 mb-3">
         {getQuickDateOptions().map(opt => (
