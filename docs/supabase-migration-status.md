@@ -2,7 +2,9 @@
 
 Updated October 2, 2026, evening WIB. **Not released.** Production remains Apps
 Script v11 and Google Sheets. Migration branch is local `codex/supabase-migration`.
-Do not treat passing local tests or the initial scheduled runs as release approval.
+On October 2, the user explicitly approved **release today after fresh checks**,
+overriding the planned 24-hour waiting gate. Fresh backup, complete reconciliation,
+paired deployment and production verification are still required.
 
 ## Account and resources
 
@@ -135,8 +137,9 @@ failure, successful recovery, runtime/quota headroom and actual nightly backup.
 The short rollback drill temporarily paused QA writes only; examine overlap logs.
 
 Still required:
-1. Observe the complete 24h trial and real nightly backup; verify backup contents and
-   timing, sync cadence/recovery and quota headroom. Do not substitute manual runs.
+1. User waived waiting for the complete 24h trial on October 2. At 21:17 WIB,
+   14 actual scheduled sync runs passed with zero failures, maximum 9.499s. The real
+   nightly backup has not yet been observed; do not describe it as tested overnight.
 2. Retain the device-specific limits above: browser failure/retry, catalog refresh,
    restored ID allocation and final deployed permission/read checks now pass. Physical
    employee-device observation remains part of the production follow-up.
@@ -149,5 +152,7 @@ Still required:
    deployed commit, ongoing sync and a real employee submission. No production migration
    or GitHub migration push has happened yet.
 
-A follow-up scheduling question is pending with the user. No Codex follow-up automation
-has been created. The Google QA sync/backup triggers run independently of this chat.
+No Codex follow-up automation has been created. The Google QA sync/backup triggers
+run independently of this chat. A fresh local workbook backup at 21:18 WIB contains
+2,254 records, including 2,052 attendance rows. This is a preparation backup; a final
+capture after pausing and draining legacy writes is still required.

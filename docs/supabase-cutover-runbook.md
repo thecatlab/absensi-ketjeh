@@ -1,12 +1,14 @@
 # Supabase cutover and rollback
 
-Use only after the release gates in `supabase-migration-review.md` pass. The restaurant
+Use after the release gates in `supabase-migration-review.md` pass. On October 2 the
+user explicitly waived the 24-hour waiting gate and approved release after fresh
+checks; retain the backup, reconciliation and deployment gates. The restaurant
 account owns both databases, Apps Script deployment, Drive media and scheduled triggers.
 Credentials/configuration stay in private files and Script Properties, never Git.
 
 ## Before the maintenance window
 
-1. Verify the exact release commit, 24-hour QA/backup evidence, private key backup,
+1. Verify the exact release commit, available scheduled QA/backup evidence, private key backup,
    restore and rollback rehearsal. Apply all ordered SQL migrations to the empty
    restaurant production project; confirm RLS/private grants/advisors and maintenance.
 2. Preserve current Vercel deployment, complete live Apps Script sources/manifest and
