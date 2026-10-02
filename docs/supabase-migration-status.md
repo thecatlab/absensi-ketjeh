@@ -1,7 +1,8 @@
 # Supabase migration implementation status
 
-Updated October 2, 2026, evening WIB. **Not released.** Production remains Apps
-Script v11 and Google Sheets. Migration branch is local `codex/supabase-migration`.
+Updated October 2, 2026, 21:58 WIB. **Released.** Production uses Apps Script v12
+and restaurant-owned Supabase. Google Sheets is the reporting mirror. The migration
+branch `codex/supabase-migration` is pushed, with GitHub PR #3.
 On October 2, the user explicitly approved **release today after fresh checks**,
 overriding the planned 24-hour waiting gate. Fresh backup, complete reconciliation,
 paired deployment and production verification are still required.
@@ -11,8 +12,9 @@ paired deployment and production verification are still required.
 - Verified owner: `restoketjeh@gmail.com`, **Ketjeh Seafood & Leisure** organization
   (`jlaqkwatcnxdpuoqahcw`), Free, Singapore projects.
 - Production Supabase: **Ketjeh's Project**, `qqvuqjnpegnppmzmcuuw`. All three schema
-  migrations applied and advisors report zero errors/warnings. Verified zero records,
-  zero imported datasets, maintenance=true; no production import or cutover yet.
+  migrations applied and advisors report zero errors/warnings. All 2,254 source records
+  across 11 datasets imported and reconciled exactly. Maintenance=false; writes opened
+  at 2026-10-02T14:58:46Z after paired frontend/backend verification.
 - QA Supabase: **absensi-ketjeh-qa**, `nrgutawmfptqnbxsftcv`. All three versioned SQL
   migrations applied. Public grants disabled; RLS enabled. Security and performance
   advisors both report zero errors/warnings. Informational RLS-without-policy notices
@@ -27,7 +29,7 @@ paired deployment and production verification are still required.
 - Supabase MCP still exposes the personal organization; do not alter restaurant
   resources through it until its connection is changed and verified.
 - `clasp` 3.4.1 credentials are restaurant-owned. Vercel CLI 62.1.0 is logged out;
-  browser Vercel access was previously authorized but release access needs verifying.
+  browser Vercel access verified and production release completed.
 
 ## Backups and exact reconciliation
 
@@ -124,35 +126,45 @@ the initial grid-capacity sync failure; subsequent complete sync verification pa
 The first rollback helper checked the wrong owner cell A1; corrected A2 rehearsal
 passed. Do not rewrite these as if the first runs passed.
 
-## Scheduled trial and remaining release work
+## Production release evidence
 
-The logged five-minute trial started **2026-10-02 20:09:04 WIB**. The nightly backup
-runs in the 02:00 WIB hour. Earliest full 24-hour assessment: **October 3 after 20:09 WIB**.
-A fresh manual backup at start was verified (2,265 records). Trial logs are stored as
-QA-only Script Properties; `reportQaSoak` writes a private evidence file. At 20:39 WIB,
-seven actual scheduled runs passed, zero failed, maximum runtime 9.499s. This is only
-the first half-hour, not the 24h gate. Latest evidence file:
-`1iuVlbkQ9iBS1hxJ6c_Jn8HX9SU4Aj-_m`. Record every
-failure, successful recovery, runtime/quota headroom and actual nightly backup.
-The short rollback drill temporarily paused QA writes only; examine overlap logs.
+- User approved release today after fresh checks, waiving the 24-hour waiting gate.
+  Fourteen scheduled QA runs had passed at 21:17 WIB, zero failures, maximum 9.499s.
+  The real nightly backup has not yet been observed; it is not described as tested.
+- Fresh local XLSX at 21:18 WIB: 2,254 records, 2,052 attendance rows. Every cell and
+  formula matched the untouched QA source. Production writes paused at 21:29:18 WIB;
+  a six-minute drain and execution-log check preceded the final capture.
+- Final complete source manifest: `1mZeqZqCo4uLnkCowFSjidZeaRjpYVjHI`, SHA256
+  `dcf94973036d83cc52a8bd302011aed7c14d4d8445db2530af50ec58d0c5b588`.
+  Final workbook copy: `1Gazri7A_8A37u3igaH7fL_5euvUjSY9Q0yj5W8kzk4w`.
+  Original workbook, extra cells, formats, formulas, notes and source files retained.
+- Import completed at 21:42 WIB. Every field, ID, order and count reconciled. A second
+  comparison against the original QA source also found zero differences. No QA fixtures
+  were imported and no synthetic production attendance was created.
+- Actual production encrypted backup restored into isolated PostgreSQL: all 2,254
+  records, credentials, dataset metadata and receipts matched; employee/admin login,
+  maintenance state and next-ID allocation/commit passed. Local tested-backup SHA256:
+  `3dcf98f076a898aa2c5b656aaf4ca0989670ae7645316c3b2bf88f16f569af22`.
+- Private restaurant backup folder: `1pjo4ZeM2DCWd3wvby5OBEM1ox_KJjKaJ`. Verified Drive
+  database backup at 21:51 WIB: `1vV3IDLbwfrFmtiaVxne4-WA4hFb1efcS`, 2,254 records.
+  Keys, original settings, final configuration and local snapshots are outside Git.
+- Recursive archive inventory contains 4,082 files. 4,009 of 4,010 database photo links
+  map to those files. **One historical briefing photo was already unavailable before
+  migration**: the same URL exists in untouched backups, and Google Drive reports that
+  the file does not exist. Its database record and URL remain unchanged. Private
+  investigation evidence records the exact row; this is not new migration data loss.
+- All 11 Sheets datasets verified after projection; active calculation views created.
+  Five-minute sync and nightly 02:00 WIB backup triggers installed as the restaurant.
+  First automatic production sync at 21:53:31 WIB passed in 3.884s with zero differences.
+- **30 deployed production read/login/authorization/backup/sync checks passed**.
+  Existing employee PIN opens dashboard/history against Supabase. K041 remains Bartender.
+  Old clients receive a reload notice. Live JavaScript targets the production backend,
+  contains no Supabase server key or QA endpoint, and serves the v2 service-worker cache.
+- Initial production deployment: `dpl_E4JWUsL6KFEACLrPEiTRgo34qeER`, commit `41f5f64`.
+  Release-documentation updates are deployed from the same tested application code.
 
-Still required:
-1. User waived waiting for the complete 24h trial on October 2. At 21:17 WIB,
-   14 actual scheduled sync runs passed with zero failures, maximum 9.499s. The real
-   nightly backup has not yet been observed; do not describe it as tested overnight.
-2. Retain the device-specific limits above: browser failure/retry, catalog refresh,
-   restored ID allocation and final deployed permission/read checks now pass. Physical
-   employee-device observation remains part of the production follow-up.
-3. Complete restaurant production configuration and required Google authorization;
-   verify Vercel ownership/release access. Keep production on Sheets during preparation.
-4. Execute the maintenance cutover runbook after closing with a fresh backup and exact
-   final reconciliation. Publish paired frontend/backend and verify real production
-   reads; no synthetic production attendance.
-5. Push GitHub and attach the migration PR only after release gates pass; verify latest
-   deployed commit, ongoing sync and a real employee submission. No production migration
-   or GitHub migration push has happened yet.
-
-No Codex follow-up automation has been created. The Google QA sync/backup triggers
-run independently of this chat. A fresh local workbook backup at 21:18 WIB contains
-2,254 records, including 2,052 attendance rows. This is a preparation backup; a final
-capture after pausing and draining legacy writes is still required.
+Retain backups until user accepts QA. Physical iPhone camera/GPS behavior and the first
+real nightly backup remain follow-up observations. Isolated browser camera/GPS, actual
+QA saves, retry protection, restore, permissions and sync checks passed. A real employee
+submission after reopening has not been observed; do not manufacture one to claim it.
+No Codex follow-up automation was created. Google sync/backup triggers run independently.
