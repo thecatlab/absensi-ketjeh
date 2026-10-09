@@ -4,8 +4,25 @@
     {
       "name": "dev",
       "runtimeExecutable": "/Users/nusaindah/.nvm/versions/node/v24.14.1/bin/node",
-      "runtimeArgs": ["node_modules/.bin/vite"],
+      "runtimeArgs": [
+        "node_modules/.bin/vite"
+      ],
       "port": 5173
+    },
+    {
+      "name": "dev-mock",
+      "runtimeExecutable": "/Users/nusaindah/.nvm/versions/node/v24.14.1/bin/node",
+      "runtimeArgs": [
+        "node_modules/.bin/vite",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5174"
+      ],
+      "env": {
+        "VITE_USE_MOCKS": "true"
+      },
+      "port": 5174
     }
   ]
 }
