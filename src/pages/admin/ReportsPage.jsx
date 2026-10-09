@@ -3,7 +3,7 @@ import Modal from '../../components/Modal';
 import PhotoDisplay from '../../components/PhotoDisplay';
 import { useRead, useBootstrap } from '../../api/useRead';
 import ReadNotice from '../../components/ReadNotice';
-import { compareRecordsByLatestInput, diffMinutes, extractTime, getArrivalStatus, getEarlyLeaveMinutes, getLateMinutes } from '../../utils/attendanceStatus';
+import { compareRecordsByLatestInput, diffMinutes, extractTime, getArrivalStatus, getEarlyLeaveMinutes, getLateMinutes, shiftSettingsForDate, summarizeLateness } from '../../utils/attendanceStatus';
 import { arrayToCSV, downloadCSV } from '../../utils/csvExport';
 
 export default function ReportsPage() {
@@ -16,14 +16,19 @@ export default function ReportsPage() {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [activeQuick, setActiveQuick] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [view, setView] = useState('detail');
   const query = useRead('getReport', { dari, sampai, karyawan_id: karyawanId });
-  const { data, loading } = query;
+  const shiftQuery = useRead('getShiftKhusus');
+  const { data } = query;
+  const loading = query.loading || shiftQuery.loading;
+  const specialShifts = shiftQuery.data?.data;
+  // Special shifts replace the general working hours on their dates.
+  const settingsFor = record => shiftSettingsForDate(settings, specialShifts, record.tanggal);
 
   function handleExport() {
-    const exportRecords = getFilteredRecords(data?.data || [], statusFilter, settings);
+    if (view === 'rekap') return exportRecap();
+    const exportRecords = getFilteredRecords(data?.data || [], statusFilter, settingsFor);
     if (!exportRecords.length) return;
-
-    const shiftSelesai = settings?.shift_selesai || '17:00';
 
     const headers = [
       { key: 'tanggal', label: 'Tanggal' },
@@ -42,10 +47,12 @@ export default function ReportsPage() {
     const rows = exportRecords.map(r => {
       const masuk = extractTime(r.jam_masuk);
       const keluar = extractTime(r.jam_keluar);
+      const daySettings = settingsFor(r);
+      const shiftSelesai = daySettings?.shift_selesai || '17:00';
 
       // Terlambat: minutes past shift_mulai + toleransi, same as the table.
-      const menitTerlambat = getLateMinutes(r, settings);
-      const menitPulangAwal = getEarlyLeaveMinutes(r, settings);
+      const menitTerlambat = getLateMinutes(r, daySettings);
+      const menitPulangAwal = getEarlyLeaveMinutes(r, daySettings);
 
       // Lembur: keluar > shift_selesai
       const lembur = keluar && keluar !== '-' && keluar > shiftSelesai;
@@ -67,12 +74,34 @@ export default function ReportsPage() {
     downloadCSV(filename, csv);
   }
 
+  function exportRecap() {
+    if (!recap.length) return;
+    const headers = [
+      { key: 'nama', label: 'Nama' },
+      { key: 'jabatan', label: 'Jabatan' },
+      { key: 'hadir', label: 'Hari Hadir' },
+      { key: 'hariTerlambat', label: 'Hari Terlambat' },
+      { key: 'lateMinutes', label: 'Total Terlambat (menit)' },
+    ];
+    downloadCSV(`rekap_terlambat_${dari}_${sampai}.csv`, arrayToCSV(headers, recap));
+  }
+
   function handlePrint() {
     window.print();
   }
 
+  function openEmployeeDetail(row) {
+    setKaryawanId(row.karyawan_id ? String(row.karyawan_id) : '');
+    setStatusFilter('all');
+    setView('detail');
+  }
+
   const allRecords = data?.data || [];
-  const records = getFilteredRecords(allRecords, statusFilter, settings);
+  // Attendance rows carry no job title; take it from the employee list.
+  const jabatanById = new Map(employees.map(employee => [String(employee.id), employee.jabatan]));
+  const recap = summarizeLateness(allRecords, settingsFor)
+    .map(row => ({ ...row, jabatan: jabatanById.get(String(row.karyawan_id)) || row.jabatan || '' }));
+  const records = view === 'rekap' ? allRecords : getFilteredRecords(allRecords, statusFilter, settingsFor);
 
   // Group by date for display
   const grouped = {};
@@ -89,6 +118,24 @@ export default function ReportsPage() {
   return (
     <div>
       <ReadNotice query={query} />
+      <ReadNotice query={shiftQuery} />
+      <div className="grid grid-cols-2 gap-1 bg-gray-100 rounded-xl p-1 mb-4 print:hidden">
+        {[
+          { id: 'detail', label: 'Detail' },
+          { id: 'rekap', label: 'Rekap Terlambat' },
+        ].map(item => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setView(item.id)}
+            className={`py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+              view === item.id ? 'bg-white text-navy shadow-sm' : 'text-gray-400'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
       {/* Quick Date Buttons */}
       <div className="grid grid-cols-2 min-[420px]:grid-cols-4 gap-2 mb-3">
         {getQuickDateOptions().map(opt => (
@@ -141,7 +188,7 @@ export default function ReportsPage() {
             ))}
           </select>
         </div>
-        <div>
+        {view === 'detail' && <div>
           <label className="text-xs text-gray-500 mb-1 block">Filter keterlambatan</label>
           <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
             {[
@@ -163,7 +210,7 @@ export default function ReportsPage() {
               </button>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
 
       {loading ? (
@@ -208,10 +255,12 @@ export default function ReportsPage() {
             <div className="bg-gray-50 rounded-xl p-6 text-center text-gray-400 text-sm">
               Tidak ada data untuk periode ini
             </div>
+          ) : view === 'rekap' ? (
+            <LatenessRecap rows={recap} onSelect={openEmployeeDetail} />
           ) : (
             <div className="space-y-4">
               {dates.map(date => (
-                <DateGroup key={date} date={date} records={grouped[date]} settings={settings} onViewRecord={setSelectedRecord} />
+                <DateGroup key={date} date={date} records={grouped[date]} settingsFor={settingsFor} onViewRecord={setSelectedRecord} />
               ))}
             </div>
           )}
@@ -297,7 +346,7 @@ function RecordDetail({ record }) {
   );
 }
 
-function DateGroup({ date, records, settings, onViewRecord }) {
+function DateGroup({ date, records, settingsFor, onViewRecord }) {
   const d = new Date(date + 'T00:00:00+07:00');
   const label = d.toLocaleDateString('id-ID', {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta',
@@ -324,7 +373,7 @@ function DateGroup({ date, records, settings, onViewRecord }) {
             {records.map((r, i) => {
               const masuk = extractTime(r.jam_masuk);
               const keluar = extractTime(r.jam_keluar);
-              const arrivalStatus = getArrivalStatus(r, settings);
+              const arrivalStatus = getArrivalStatus(r, settingsFor(r));
               const masukClass = getArrivalTimeClass(arrivalStatus);
               const isOffSite = r.status_lokasi_masuk !== 'On-site';
               return (
@@ -332,7 +381,7 @@ function DateGroup({ date, records, settings, onViewRecord }) {
                   <td className="py-2 px-3 font-medium text-gray-700 truncate">{r.nama}</td>
                   <td className={`py-2 px-3 font-semibold ${masukClass}`}>{masuk}</td>
                   <td className="py-2 px-3 text-gray-600">{keluar}</td>
-                  <td className="py-2 px-3"><LatenessCell record={r} settings={settings} /></td>
+                  <td className="py-2 px-3"><LatenessCell minutes={getLateMinutes(r, settingsFor(r))} /></td>
                   <td className="py-2 px-3 text-center">
                     <span className={`inline-block w-2 h-2 rounded-full ${isOffSite ? 'bg-warning' : 'bg-success'}`} />
                   </td>
@@ -346,14 +395,40 @@ function DateGroup({ date, records, settings, onViewRecord }) {
   );
 }
 
-function LatenessCell({ record, settings }) {
-  const late = getLateMinutes(record, settings);
-  const early = getEarlyLeaveMinutes(record, settings);
-  if (!late && !early) return <span className="text-gray-300">-</span>;
+function LatenessCell({ minutes }) {
+  if (!minutes) return <span className="text-gray-300">-</span>;
+  return <span className="font-semibold text-danger">{formatMinutes(minutes)}</span>;
+}
+
+function LatenessRecap({ rows, onSelect }) {
   return (
-    <div className="leading-tight">
-      {late > 0 && <p className="font-semibold text-danger">{formatMinutes(late)}</p>}
-      {early > 0 && <p className="text-[10px] text-warning">Pulang -{formatMinutes(early)}</p>}
+    <div>
+      <p className="text-[11px] text-gray-400 mb-2">Total menit terlambat per karyawan. Hari tanpa absensi tidak dihitung. Ketuk nama untuk melihat detail.</p>
+      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+        <table className="w-full table-fixed text-xs">
+          <thead>
+            <tr className="bg-gray-50 text-gray-400 text-left">
+              <th className="w-[40%] py-2 px-3 font-medium">Nama</th>
+              <th className="w-[16%] py-2 px-3 font-medium text-center">Hadir</th>
+              <th className="w-[18%] py-2 px-3 font-medium text-center">Telat</th>
+              <th className="w-[26%] py-2 px-3 font-medium">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => (
+              <tr key={row.karyawan_id || row.nama} className="border-t border-gray-50 cursor-pointer hover:bg-gray-50 active:bg-gray-100" onClick={() => onSelect(row)}>
+                <td className="py-2 px-3">
+                  <p className="font-medium text-gray-700 truncate">{row.nama}</p>
+                  {row.jabatan && <p className="text-[10px] text-gray-400 truncate">{row.jabatan}</p>}
+                </td>
+                <td className="py-2 px-3 text-center text-gray-600">{row.hadir}</td>
+                <td className="py-2 px-3 text-center text-gray-600">{row.hariTerlambat}x</td>
+                <td className="py-2 px-3"><LatenessCell minutes={row.lateMinutes} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -370,10 +445,10 @@ function getArrivalTimeClass(status) {
   return 'text-success';
 }
 
-function getFilteredRecords(records, statusFilter, settings) {
+function getFilteredRecords(records, statusFilter, settingsFor) {
   if (statusFilter === 'all') return records;
   return records.filter(record => {
-    const status = getArrivalStatus(record, settings);
+    const status = getArrivalStatus(record, settingsFor(record));
     if (statusFilter === 'late_any') return status === 'tolerance' || status === 'late';
     if (statusFilter === 'late_only') return status === 'late';
     return true;

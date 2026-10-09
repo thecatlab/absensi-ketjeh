@@ -75,3 +75,33 @@ export function getEarlyLeaveMinutes(record, settings) {
   if (keluarDate && record.tanggal && keluarDate > record.tanggal) return 0;
   return Math.max(shiftSelesai - keluar, 0);
 }
+
+// Settings for one attendance date: a special shift (Shift tab) replaces the
+// general start/end times on its date. LIBUR days have no working hours to apply.
+export function shiftSettingsForDate(settings, specialShifts, date) {
+  const special = (specialShifts || []).find(shift => String(shift.tanggal || '').slice(0, 10) === date);
+  if (!special || String(special.shift_mulai).toUpperCase() === 'LIBUR') return settings;
+  return {
+    ...settings,
+    shift_mulai: normalizeTime(special.shift_mulai) || settings?.shift_mulai,
+    shift_selesai: normalizeTime(special.shift_selesai) || settings?.shift_selesai,
+  };
+}
+
+// One row per employee for the chosen period, most late minutes first.
+// Days without attendance are not counted; absences are tracked separately.
+export function summarizeLateness(records, settingsFor) {
+  const byEmployee = new Map();
+  for (const record of records) {
+    const key = String(record.karyawan_id || record.nama);
+    const row = byEmployee.get(key) || { karyawan_id: record.karyawan_id, nama: record.nama, jabatan: record.jabatan, days: new Set(), lateDays: new Set(), lateMinutes: 0 };
+    const late = getLateMinutes(record, settingsFor(record));
+    row.days.add(record.tanggal);
+    if (late > 0) row.lateDays.add(record.tanggal);
+    row.lateMinutes += late;
+    byEmployee.set(key, row);
+  }
+  return [...byEmployee.values()]
+    .map(({ days, lateDays, ...row }) => ({ ...row, hadir: days.size, hariTerlambat: lateDays.size }))
+    .sort((a, b) => b.lateMinutes - a.lateMinutes || String(a.nama).localeCompare(String(b.nama)));
+}
