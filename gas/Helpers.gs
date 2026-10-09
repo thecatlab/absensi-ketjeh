@@ -51,15 +51,20 @@ function findRowIndex(sheetName, colIndex, value) {
 /**
  * Get today's date string in YYYY-MM-DD format (WIB).
  */
+function databaseNow() {
+  return typeof databaseRequest !== 'undefined' && databaseRequest && databaseRequest.startedAt
+    ? new Date(databaseRequest.startedAt) : new Date();
+}
+
 function getTodayString() {
-  return Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+  return Utilities.formatDate(databaseNow(), 'Asia/Jakarta', 'yyyy-MM-dd');
 }
 
 /**
  * Get current datetime string in WIB.
  */
 function getNowString() {
-  return Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd HH:mm:ss');
+  return Utilities.formatDate(databaseNow(), 'Asia/Jakarta', 'yyyy-MM-dd HH:mm:ss');
 }
 
 /**
@@ -205,7 +210,9 @@ function cekLokasi(lat, lng) {
  */
 function uploadFoto(base64String, fileName) {
   const settings = getSettings();
-  const folderId = settings.foto_folder_id;
+  const properties = typeof PropertiesService === 'undefined' ? null : PropertiesService.getScriptProperties();
+  const folderId = properties && properties.getProperty('ENVIRONMENT') === 'qa'
+    ? properties.getProperty('QA_PHOTO_FOLDER_ID') : settings.foto_folder_id;
 
   if (!folderId) {
     throw new Error('foto_folder_id not configured in Pengaturan');
@@ -214,19 +221,21 @@ function uploadFoto(base64String, fileName) {
   const rootFolder = DriveApp.getFolderById(folderId);
   const today = getTodayString();
 
-  // Get or create date subfolder
+  // Only folder discovery/creation is locked. Sync uses a separate script lock.
+  const folderLock = typeof LockService === 'undefined' ? null : LockService.getUserLock();
+  if (folderLock) folderLock.waitLock(10000);
   let dateFolder;
-  const folders = rootFolder.getFoldersByName(today);
-  if (folders.hasNext()) {
-    dateFolder = folders.next();
-  } else {
-    dateFolder = rootFolder.createFolder(today);
+  try {
+    const folders = rootFolder.getFoldersByName(today);
+    dateFolder = folders.hasNext() ? folders.next() : rootFolder.createFolder(today);
+  } finally {
+    if (folderLock) folderLock.releaseLock();
   }
 
   // Decode base64 and create file
   const decoded = Utilities.base64Decode(base64String);
   const blob = Utilities.newBlob(decoded, 'image/jpeg', fileName + '.jpg');
-  const file = dateFolder.createFile(blob);
+  const file = createOperationPhoto(dateFolder, blob, fileName);
 
   // Make viewable with link
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -277,6 +286,10 @@ function handleVerifyPin(body) {
  * Verify employee PIN. Returns true if PIN matches.
  */
 function verifyPin(karyawanId, pin) {
+  if (typeof databaseRequest !== 'undefined' && databaseRequest) {
+    const auth = databaseRequest.snapshot.auth;
+    return auth.role === 'employee' && auth.employee.id === String(karyawanId) && pin === databaseRequest.body.pin;
+  }
   const sheet = getSheet('Karyawan');
   const data = sheet.getDataRange().getDisplayValues();
   const headers = data[0];
@@ -289,4 +302,20 @@ function verifyPin(karyawanId, pin) {
     }
   }
   return false;
+}
+
+// An operation-specific file name lets a retry recover an upload even if the
+// request stopped between Drive creation and the database transaction.
+function createOperationPhoto(folder, blob, fileName) {
+  if (typeof databaseRequest === 'undefined' || !databaseRequest || !databaseRequest.operationId) return folder.createFile(blob);
+  const name = fileName + '_' + databaseRequest.operationId + '.jpg';
+  const existing = folder.getFilesByName(name);
+  if (existing.hasNext()) return existing.next();
+  blob.setName(name);
+  return folder.createFile(blob);
+}
+
+function databaseRecordId(prefix) {
+  return prefix + (typeof databaseRequest !== 'undefined' && databaseRequest && databaseRequest.operationId
+    ? databaseRequest.operationId : new Date().getTime());
 }

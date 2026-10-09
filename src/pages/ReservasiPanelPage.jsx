@@ -1,10 +1,14 @@
 import ReservasiPage from './admin/ReservasiPage';
-
-const MANAGER_ROLES = ['manager', 'kasir'];
+import { useBootstrap } from '../api/useRead';
+import { DEFAULT_RESERVATION_ROLES, isRoleAllowed } from '../utils/permissions';
 
 export default function ReservasiPanelPage({ selectedEmployee, verifiedAccess }) {
+  const settings = useBootstrap().data?.data.settings;
   const isVerified = selectedEmployee && String(verifiedAccess?.employeeId) === String(selectedEmployee.id);
-  const canManage = isVerified && MANAGER_ROLES.includes(String(selectedEmployee?.jabatan || '').toLowerCase());
+  const canManage = isVerified && isRoleAllowed(selectedEmployee?.jabatan, settings, 'reservation_manage_roles', DEFAULT_RESERVATION_ROLES);
+  const employeeAuth = isVerified
+    ? { karyawan_id: selectedEmployee.id, pin: verifiedAccess.pin }
+    : null;
 
   return (
     <div className="px-5 py-6">
@@ -26,7 +30,7 @@ export default function ReservasiPanelPage({ selectedEmployee, verifiedAccess })
           Masukkan PIN di Beranda untuk membuka data reservasi.
         </div>
       ) : (
-        <ReservasiPage canManage={canManage} startFormOpen={false} />
+        <ReservasiPage canManage={canManage} startFormOpen={false} employeeAuth={employeeAuth} />
       )}
     </div>
   );

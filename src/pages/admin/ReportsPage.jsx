@@ -1,38 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
-import StatCard from '../../components/StatCard';
+import { useState } from 'react';
 import Modal from '../../components/Modal';
 import PhotoDisplay from '../../components/PhotoDisplay';
-import { getReport, getAllEmployees, getPengaturan } from '../../api/client';
+import { useRead, useBootstrap } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
+import { addMinutes, compareRecordsByLatestInput, diffMinutes, extractTime, getArrivalStatus } from '../../utils/attendanceStatus';
 import { arrayToCSV, downloadCSV } from '../../utils/csvExport';
 
-export default function ReportsPage({ adminPassword }) {
-  const [employees, setEmployees] = useState([]);
+export default function ReportsPage() {
+  const reference = useBootstrap();
+  const employees = reference.data?.data.employees || [];
+  const settings = reference.data?.data.settings;
   const [dari, setDari] = useState(getDefaultDari());
   const [sampai, setSampai] = useState(getDefaultSampai());
   const [karyawanId, setKaryawanId] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [activeQuick, setActiveQuick] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [settings, setSettings] = useState(null);
-
-  const loadReport = useCallback(() => {
-    setLoading(true);
-    getReport(dari, sampai, karyawanId || null, adminPassword)
-      .then(res => { if (res.success) setData(res); })
-      .finally(() => setLoading(false));
-  }, [adminPassword, dari, karyawanId, sampai]);
-
-  useEffect(() => {
-    getAllEmployees().then(res => { if (res.success) setEmployees(res.data); });
-    getPengaturan().then(res => { if (res.success) setSettings(res.data); });
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(loadReport, 0);
-    return () => clearTimeout(timer);
-  }, [loadReport]);
+  const query = useRead('getReport', { dari, sampai, karyawan_id: karyawanId });
+  const { data, loading } = query;
 
   function handleExport() {
     const exportRecords = getFilteredRecords(data?.data || [], statusFilter, settings);
@@ -88,28 +73,31 @@ export default function ReportsPage({ adminPassword }) {
     window.print();
   }
 
-  const summary = data?.summary || {};
   const allRecords = data?.data || [];
   const records = getFilteredRecords(allRecords, statusFilter, settings);
-  const visibleSummary = getVisibleSummary(records, settings);
 
   // Group by date for display
   const grouped = {};
+  const recordOrder = new Map(records.map((record, index) => [record, index]));
   records.forEach(r => {
     if (!grouped[r.tanggal]) grouped[r.tanggal] = [];
     grouped[r.tanggal].push(r);
+  });
+  Object.values(grouped).forEach(dayRecords => {
+    dayRecords.sort((a, b) => compareRecordsByLatestInput(a, b, recordOrder));
   });
   const dates = Object.keys(grouped).sort().reverse();
 
   return (
     <div>
+      <ReadNotice query={query} />
       {/* Quick Date Buttons */}
-      <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+      <div className="grid grid-cols-2 min-[420px]:grid-cols-4 gap-2 mb-3">
         {getQuickDateOptions().map(opt => (
           <button
             key={opt.label}
             onClick={() => { setDari(opt.dari); setSampai(opt.sampai); setActiveQuick(opt.label); }}
-            className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`min-h-10 px-3 py-2 rounded-lg text-xs font-medium leading-tight transition-colors ${
               activeQuick === opt.label
                 ? 'bg-navy text-white'
                 : 'bg-gray-100 text-gray-500 active:bg-gray-200'
@@ -122,14 +110,14 @@ export default function ReportsPage({ adminPassword }) {
 
       {/* Filters */}
       <div className="space-y-3 mb-5">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Dari</label>
             <input
               type="date"
               value={dari}
               onChange={e => { setDari(e.target.value); setActiveQuick(null); }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-navy"
+              className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-navy"
             />
           </div>
           <div>
@@ -138,7 +126,7 @@ export default function ReportsPage({ adminPassword }) {
               type="date"
               value={sampai}
               onChange={e => { setSampai(e.target.value); setActiveQuick(null); }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-navy"
+              className="w-full min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-navy"
             />
           </div>
         </div>
@@ -157,17 +145,17 @@ export default function ReportsPage({ adminPassword }) {
         </div>
         <div>
           <label className="text-xs text-gray-500 mb-1 block">Filter keterlambatan</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
             {[
               { value: 'all', label: 'Semua' },
-              { value: 'late_any', label: 'Telat & Terlambat' },
+              { value: 'late_any', label: 'Toleransi & Terlambat' },
               { value: 'late_only', label: 'Terlambat' },
             ].map(option => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => setStatusFilter(option.value)}
-                className={`px-2 py-2 rounded-lg text-xs font-medium ${
+                className={`min-h-10 px-2 py-2 rounded-lg text-xs font-medium leading-tight ${
                   statusFilter === option.value
                     ? 'bg-navy text-white'
                     : 'bg-gray-100 text-gray-500 active:bg-gray-200'
@@ -189,14 +177,6 @@ export default function ReportsPage({ adminPassword }) {
         </div>
       ) : (
         <>
-          {/* Summary Stats */}
-          <div className="grid grid-cols-2 gap-3 mb-5 print:grid-cols-4">
-            <StatCard label="Hari Kerja" value={summary.total_hari || 0} color="blue" />
-            <StatCard label="Total Hadir" value={visibleSummary.total_hadir || 0} color="green" />
-            <StatCard label="Terlambat" value={visibleSummary.total_terlambat || 0} color="yellow" />
-            <StatCard label="Rata-rata Durasi" value={`${visibleSummary.rata_rata_durasi || 0}j`} color="gray" />
-          </div>
-
           {/* Export Buttons */}
           <div className="flex gap-2 mb-4 print:hidden">
             <button
@@ -252,6 +232,7 @@ function RecordDetail({ record }) {
   const masuk = extractTime(record.jam_masuk);
   const keluar = extractTime(record.jam_keluar);
   const isOnSiteMasuk = record.status_lokasi_masuk === 'On-site';
+  const note = getRecordNote(record);
 
   return (
     <div className="space-y-4">
@@ -309,6 +290,11 @@ function RecordDetail({ record }) {
           Durasi kerja: <span className="font-semibold text-gray-700">{record.durasi_jam} jam</span>
         </div>
       )}
+
+      <div className="bg-gray-50 rounded-xl p-4">
+        <p className="text-xs font-medium text-gray-400 mb-1">Catatan</p>
+        <p className="text-sm text-gray-700 whitespace-pre-line">{note || 'Tidak ada catatan'}</p>
+      </div>
     </div>
   );
 }
@@ -341,12 +327,12 @@ function DateGroup({ date, records, settings, onViewRecord }) {
               const masuk = extractTime(r.jam_masuk);
               const keluar = extractTime(r.jam_keluar);
               const arrivalStatus = getArrivalStatus(r, settings);
-              const isLate = arrivalStatus === 'late' || arrivalStatus === 'tolerance';
+              const masukClass = getArrivalTimeClass(arrivalStatus);
               const isOffSite = r.status_lokasi_masuk !== 'On-site';
               return (
                 <tr key={i} className="border-t border-gray-50 cursor-pointer hover:bg-gray-50 active:bg-gray-100" onClick={() => onViewRecord(r)}>
                   <td className="py-2 px-3 font-medium text-gray-700 truncate">{r.nama}</td>
-                  <td className={`py-2 px-3 ${isLate ? 'text-warning font-semibold' : 'text-success'}`}>{masuk}</td>
+                  <td className={`py-2 px-3 font-semibold ${masukClass}`}>{masuk}</td>
                   <td className="py-2 px-3 text-gray-600">{keluar}</td>
                   <td className="py-2 px-3 text-gray-600">{r.durasi_jam}j</td>
                   <td className="py-2 px-3 text-center">
@@ -362,6 +348,12 @@ function DateGroup({ date, records, settings, onViewRecord }) {
   );
 }
 
+function getArrivalTimeClass(status) {
+  if (status === 'tolerance') return 'text-warning';
+  if (status === 'late') return 'text-danger';
+  return 'text-success';
+}
+
 function getFilteredRecords(records, statusFilter, settings) {
   if (statusFilter === 'all') return records;
   return records.filter(record => {
@@ -372,52 +364,8 @@ function getFilteredRecords(records, statusFilter, settings) {
   });
 }
 
-function getVisibleSummary(records, settings) {
-  if (!records.length) {
-    return { total_hadir: 0, total_terlambat: 0, rata_rata_durasi: 0 };
-  }
-  const totalDurasi = records.reduce((sum, record) => sum + (parseFloat(record.durasi_jam) || 0), 0);
-  return {
-    total_hadir: records.length,
-    total_terlambat: records.filter(record => getArrivalStatus(record, settings) === 'late').length,
-    rata_rata_durasi: (totalDurasi / records.length).toFixed(2),
-  };
-}
-
-function getArrivalStatus(record, settings) {
-  const masuk = extractTime(record.jam_masuk);
-  if (!masuk || masuk === '-') return 'none';
-  const shiftMulai = settings?.shift_mulai || '08:00';
-  const toleransi = parseInt(settings?.toleransi_terlambat_menit) || 15;
-  const batasToleransi = addMinutes(shiftMulai, toleransi);
-  if (masuk <= shiftMulai) return 'on_time';
-  if (masuk <= batasToleransi) return 'tolerance';
-  return 'late';
-}
-
-function extractTime(dtStr) {
-  if (!dtStr) return '-';
-  const parts = String(dtStr).split(' ');
-  return parts.length >= 2 ? parts[1].substring(0, 5) : dtStr;
-}
-
-/**
- * Add minutes to a "HH:MM" time string. Returns "HH:MM".
- */
-function addMinutes(timeStr, minutes) {
-  const [h, m] = timeStr.split(':').map(Number);
-  const total = h * 60 + m + minutes;
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-}
-
-/**
- * Calculate difference in minutes between two "HH:MM" strings.
- * Returns positive number if endTime > startTime.
- */
-function diffMinutes(startTime, endTime) {
-  const [h1, m1] = startTime.split(':').map(Number);
-  const [h2, m2] = endTime.split(':').map(Number);
-  return (h2 * 60 + m2) - (h1 * 60 + m1);
+function getRecordNote(record) {
+  return String(record.catatan || record.notes || record.note || record.keterangan || '').trim();
 }
 
 function getQuickDateOptions() {

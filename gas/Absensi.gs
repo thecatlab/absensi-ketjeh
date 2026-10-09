@@ -102,7 +102,8 @@ function handleCekStatusHariIni(karyawanId) {
  * Body: { karyawan_id, nama, lat, lng, foto_base64, pin }
  */
 function handleClockIn(body) {
-  const { karyawan_id, nama, lat, lng, foto_base64, pin } = body;
+  const { karyawan_id, lat, lng, foto_base64, pin } = body;
+  const nama = typeof databaseRequest !== 'undefined' && databaseRequest ? databaseRequest.snapshot.auth.employee.nama : body.nama;
 
   // Validate required fields
   if (!karyawan_id || !nama) {
@@ -126,12 +127,7 @@ function handleClockIn(body) {
   const today = getTodayString();
   const now = getNowString();
 
-  // Upload photo
-  let fotoUrl = '';
-  if (foto_base64) {
-    const fileName = karyawan_id + '_masuk_' + today;
-    fotoUrl = uploadFoto(foto_base64, fileName);
-  }
+  if (typeof databaseRequest !== 'undefined' && databaseRequest && !foto_base64) return { error: 'Foto absensi diperlukan.' };
 
   // Check location
   const lokasi = cekLokasi(lat, lng);
@@ -149,6 +145,14 @@ function handleClockIn(body) {
     }
     shiftMulai = shiftKhusus.shift_mulai;
   }
+
+  // Upload photo
+  let fotoUrl = '';
+  if (foto_base64) {
+    const fileName = karyawan_id + '_masuk_' + today;
+    fotoUrl = uploadFoto(foto_base64, fileName);
+  }
+
 
   // Generate record ID
   const id = 'A' + today.replace(/-/g, '') + '-' + karyawan_id + '-IN';
@@ -225,6 +229,15 @@ function handleClockOut(body) {
 
   const now = getNowString();
 
+  if (typeof databaseRequest !== 'undefined' && databaseRequest && !foto_base64) return { error: 'Foto absensi diperlukan.' };
+
+  // Sheets displays morning hours without a leading zero; keep that stored
+  // value intact while normalizing only the timestamp used for arithmetic.
+  const storedStart = data[targetRow - 1][4];
+  const startText = String(storedStart).replace(/[ T](\d{1,2}):/, function(_, hour) { return 'T' + hour.padStart(2, '0') + ':'; });
+  const jamMasuk = storedStart instanceof Date ? storedStart : new Date(startText + (/(Z|[+-]\d{2}:?\d{2})$/i.test(startText) ? '' : '+07:00'));
+  if (!Number.isFinite(jamMasuk.getTime())) return { error: 'Jam masuk tidak valid. Hubungi admin sebelum clock out.' };
+
   // Upload photo
   let fotoUrl = '';
   if (foto_base64) {
@@ -236,9 +249,7 @@ function handleClockOut(body) {
   const lokasi = cekLokasi(lat, lng);
 
   // Calculate duration
-  const jamMasukStr = String(data[targetRow - 1][4]);
-  const jamMasuk = new Date(jamMasukStr);
-  const jamKeluar = new Date();
+  const jamKeluar = databaseNow();
   const durasiMs = jamKeluar - jamMasuk;
   const durasiJam = Math.round((durasiMs / 3600000) * 100) / 100;
 

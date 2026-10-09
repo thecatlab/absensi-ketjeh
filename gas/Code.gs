@@ -6,7 +6,11 @@
 const SPREADSHEET_ID = '1SagtqxaXoAe2a-2BM0a7ejilsRr87oUyMdmEi86OSiM';
 
 function getSpreadsheet() {
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
+  if (typeof databaseRequest !== 'undefined' && databaseRequest) {
+    return { getSheetByName: databaseSheet };
+  }
+  const configuredId = typeof PropertiesService === 'undefined' ? '' : PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  return SpreadsheetApp.openById(configuredId || SPREADSHEET_ID);
 }
 
 // ============================================================
@@ -16,11 +20,18 @@ function doGet(e) {
   const action = (e.parameter && e.parameter.action) || '';
 
   try {
+    if (typeof databaseMode === 'function' && databaseMode() === 'supabase') {
+      return jsonResponse(databaseDispatch(e.parameter || {}, 'GET'));
+    }
     let result;
 
     switch (action) {
       case 'getKaryawan':
         result = handleGetKaryawan();
+        break;
+
+      case 'getJabatan':
+        result = handleGetJabatan();
         break;
 
       case 'getAbsensiHariIni':
@@ -85,6 +96,13 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents);
     const action = body.action || '';
 
+    if (typeof databaseMode === 'function' && databaseMode() === 'supabase') {
+      return jsonResponse(databaseDispatch(body, 'POST'));
+    }
+    if (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties().getProperty('MAINTENANCE') === 'true'
+        && !/^(get|verify|adminLogin)/.test(action)) {
+      return jsonResponse({ error: 'Sistem sedang pemeliharaan. Silakan coba lagi.' });
+    }
     let result;
 
     switch (action) {
@@ -98,6 +116,10 @@ function doPost(e) {
 
       case 'adminLogin':
         result = handleAdminLogin(body);
+        break;
+
+      case 'getAllEmployees':
+        result = handleGetAllEmployees(body);
         break;
 
       case 'tambahKaryawan':

@@ -25,3 +25,10 @@ dist-ssr
 *.sw?
 .vercel
 .env*.local
+
+# Local deployment state and CLI cache
+.clasp.json
+supabase/.temp/
+
+# Personal Claude Code permissions
+.claude/settings.local.json

@@ -8,7 +8,9 @@ import ReservasiPanelPage from './pages/ReservasiPanelPage'
 import AdminPage from './pages/AdminPage'
 import ClockPage from './pages/ClockPage'
 import InstallPrompt from './components/InstallPrompt'
-import { getKaryawan } from './api/client'
+import { setEmployeeCredential, seedDashboard } from './api/client'
+import { useBootstrap, useReadClock } from './api/useRead'
+import ReadNotice from './components/ReadNotice'
 
 const DASHBOARD_SESSION_KEY = 'employee_dashboard_session'
 
@@ -33,43 +35,41 @@ function readDashboardSession() {
 }
 
 function App() {
-  const [employees, setEmployees] = useState([])
-  const [selectedEmployee, setSelectedEmployee] = useState(null)
+  const bootstrap = useBootstrap()
+  useReadClock()
+  const employees = bootstrap.data?.data.employees || []
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(() => readDashboardSession()?.employeeId)
+  const selectedEmployee = employees.find(employee => String(employee.id) === String(selectedEmployeeId)) || null
   const [dashboardSession, setDashboardSession] = useState(() => readDashboardSession())
   const [verifiedAccess, setVerifiedAccess] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const loading = bootstrap.loading
   const location = useLocation()
 
   useEffect(() => {
-    getKaryawan()
-      .then(res => {
-        if (res.success) {
-          setEmployees(res.data)
-          const session = readDashboardSession()
-          if (session?.employeeId) {
-            const activeEmployee = res.data.find(emp => String(emp.id) === String(session.employeeId))
-            if (activeEmployee) {
-              setSelectedEmployee(activeEmployee)
-              setDashboardSession(session)
-            } else {
-              localStorage.removeItem(DASHBOARD_SESSION_KEY)
-              setDashboardSession(null)
-            }
-          }
-        }
-      })
-      .finally(() => setLoading(false))
+    const onExpired = event => {
+      if (!event.detail.scope.startsWith('employee:')) return
+      localStorage.removeItem(DASHBOARD_SESSION_KEY)
+      setDashboardSession(null)
+      setVerifiedAccess(null)
+    }
+    window.addEventListener('ketjeh-auth-expired', onExpired)
+    return () => window.removeEventListener('ketjeh-auth-expired', onExpired)
   }, [])
 
   const isClockPage = location.pathname.startsWith('/clock')
   const shouldHideChrome = isClockPage
 
   function handleSelectEmployee(employee) {
-    setSelectedEmployee(employee)
+    setEmployeeCredential(null, null);
+    setSelectedEmployeeId(employee?.id)
+    localStorage.removeItem(DASHBOARD_SESSION_KEY)
+    setDashboardSession(null)
     setVerifiedAccess(null)
   }
 
-  function startDashboardSession(employee, pin) {
+  function startDashboardSession(employee, pin, dashboard) {
+    setEmployeeCredential(employee.id, pin);
+    if (dashboard) seedDashboard(dashboard, employee.id)
     const session = {
       employeeId: employee.id,
       role: employee.jabatan || '',
@@ -78,7 +78,7 @@ function App() {
     }
     localStorage.setItem(DASHBOARD_SESSION_KEY, JSON.stringify(session))
     setDashboardSession(session)
-    setSelectedEmployee(employee)
+    setSelectedEmployeeId(employee.id)
     setVerifiedAccess({ employeeId: employee.id, pin })
   }
 
@@ -87,6 +87,7 @@ function App() {
   }
 
   function handleClockOutSuccess() {
+    setEmployeeCredential(null, null);
     localStorage.removeItem(DASHBOARD_SESSION_KEY)
     setDashboardSession(null)
     setVerifiedAccess(null)
@@ -106,6 +107,7 @@ function App() {
       {!shouldHideChrome && <Header employee={selectedEmployee} />}
       {!shouldHideChrome && <InstallPrompt />}
       <main className="flex-1 overflow-y-auto pb-20">
+        <ReadNotice query={bootstrap} />
         <Routes>
           <Route path="/" element={
             <HomePage

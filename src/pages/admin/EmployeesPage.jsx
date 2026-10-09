@@ -1,11 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useRead, useBootstrap } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
 import Modal from '../../components/Modal';
 import EmployeeForm from '../../components/EmployeeForm';
-import { getAllEmployees, addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
+import SettingsPanel from './SettingsPanel';
+import { addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
 
 export default function EmployeesPage({ adminPassword }) {
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const query = useRead('getAllEmployees');
+  const reference = useBootstrap();
+  const employees = query.data?.data || [];
+  const settings = reference.data?.data.settings;
+  const jabatanOptions = reference.data?.data.jabatan || [];
+  const loading = query.loading || reference.loading;
+  const loadError = !loading && !query.error && !reference.error && jabatanOptions.length === 0
+    ? 'Belum ada jabatan aktif. Tambahkan jabatan melalui admin.' : null;
+  const [activeView, setActiveView] = useState('employees');
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [modalMode, setModalMode] = useState(null); // null | 'add' | 'edit'
@@ -13,17 +23,7 @@ export default function EmployeesPage({ adminPassword }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
 
-  const loadEmployees = useCallback(() => {
-    setLoading(true);
-    getAllEmployees()
-      .then(res => { if (res.success) setEmployees(res.data); })
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(loadEmployees, 0);
-    return () => clearTimeout(timer);
-  }, [loadEmployees]);
+  const loadEmployees = () => Promise.allSettled([query.refresh(), reference.refresh()]);
 
   function showMessage(text, isError = false) {
     setMessage({ text, isError });
@@ -87,6 +87,13 @@ export default function EmployeesPage({ adminPassword }) {
 
   return (
     <div>
+      <ReadNotice query={query} />
+      {loadError && (
+        <div role="alert" className="mb-4 px-4 py-2.5 rounded-xl text-sm bg-danger/10 text-danger">
+          {loadError}
+          <button onClick={loadEmployees} disabled={loading} className="ml-2 underline">Coba lagi</button>
+        </div>
+      )}
       {/* Message toast */}
       {message && (
         <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-medium ${
@@ -96,6 +103,38 @@ export default function EmployeesPage({ adminPassword }) {
         </div>
       )}
 
+      <div className="grid grid-cols-2 gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+        {[
+          { id: 'employees', label: 'Karyawan' },
+          { id: 'settings', label: 'Pengaturan Umum' },
+        ].map(item => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setActiveView(item.id)}
+            className={`py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+              activeView === item.id ? 'bg-white text-navy shadow-sm' : 'text-gray-400'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {activeView === 'settings' ? (
+        loading ? (
+          <div className="h-40 bg-gray-100 rounded-xl animate-pulse" />
+        ) : (
+          <SettingsPanel
+            settings={settings}
+            jabatanOptions={jabatanOptions}
+            adminPassword={adminPassword}
+            onSaved={(text) => { showMessage(text); loadEmployees(); }}
+            onError={(text) => showMessage(text, true)}
+          />
+        )
+      ) : (
+        <>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -103,7 +142,8 @@ export default function EmployeesPage({ adminPassword }) {
         </div>
         <button
           onClick={() => { setEditTarget(null); setModalMode('add'); }}
-          className="bg-navy text-white text-xs font-semibold px-4 py-2 rounded-lg active:bg-navy-dark"
+          disabled={loading || !!loadError}
+          className="bg-navy text-white text-xs font-semibold px-4 py-2 rounded-lg active:bg-navy-dark disabled:opacity-50"
         >
           + Tambah
         </button>
@@ -163,10 +203,13 @@ export default function EmployeesPage({ adminPassword }) {
       >
         <EmployeeForm
           employee={modalMode === 'edit' ? editTarget : null}
+          jabatanOptions={jabatanOptions}
           onSubmit={modalMode === 'edit' ? handleEdit : handleAdd}
           loading={saving}
         />
       </Modal>
+        </>
+      )}
     </div>
   );
 }

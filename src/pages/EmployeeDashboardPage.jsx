@@ -1,34 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useRead, useBootstrap } from '../api/useRead';
+import ReadNotice from '../components/ReadNotice';
 import Camera from '../components/Camera';
-import { getEmployeeDashboard, setTodoStatus, uploadBriefingPhoto } from '../api/client';
+import { setTodoStatus, uploadBriefingPhoto } from '../api/client';
 import { CONFIG } from '../config';
+import { DEFAULT_BRIEFING_ROLES, isRoleAllowed } from '../utils/permissions';
 
 export default function EmployeeDashboardPage({ employee, embedded = false }) {
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const query = useRead('getEmployeeDashboard', { karyawan_id: employee.id });
+  const { data, loading } = query;
+  const reference = useBootstrap();
   const [reservasiOpen, setReservasiOpen] = useState(true);
   const [expandedReservasi, setExpandedReservasi] = useState({});
   const [briefingPhoto, setBriefingPhoto] = useState(null);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [briefingSaving, setBriefingSaving] = useState(false);
   const [message, setMessage] = useState(null);
-  const canUploadBriefing = ['manager', 'captain floor'].includes(String(employee.jabatan).toLowerCase());
-
-  const loadDashboard = useCallback(() => {
-    setLoading(true);
-    getEmployeeDashboard(employee)
-      .then(res => {
-        if (res.success) setData(res);
-      })
-      .finally(() => setLoading(false));
-  }, [employee]);
-
-  useEffect(() => {
-    const timer = setTimeout(loadDashboard, 0);
-    return () => clearTimeout(timer);
-  }, [loadDashboard]);
+  const settings = data?.settings || reference.data?.data.settings;
+  const canUploadBriefing = isRoleAllowed(employee.jabatan, settings, 'briefing_photo_roles', DEFAULT_BRIEFING_ROLES);
+  const loadDashboard = () => query.refresh().catch(() => {});
 
   function showMessage(text, isError = false) {
     setMessage({ text, isError });
@@ -36,7 +28,7 @@ export default function EmployeeDashboardPage({ employee, embedded = false }) {
   }
 
   async function handleTodoChange(todoId, checked) {
-    setData(prev => ({
+    query.update(prev => ({
       ...prev,
       todos: prev.todos.map(todo => todo.id === todoId ? { ...todo, selesai: checked } : todo),
     }));
@@ -99,6 +91,7 @@ export default function EmployeeDashboardPage({ employee, embedded = false }) {
           <button onClick={loadDashboard} className="text-xs text-navy font-medium">Refresh</button>
         </div>
 
+        <ReadNotice query={query} />
         {message && (
           <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-medium ${
             message.isError ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'
@@ -189,7 +182,7 @@ export default function EmployeeDashboardPage({ employee, embedded = false }) {
                   </div>
                 ) : briefingOpen ? (
                   <div className="space-y-3">
-                    <Camera onCapture={setBriefingPhoto} />
+                    <Camera onCapture={setBriefingPhoto} allowUpload />
                     <button
                       onClick={handleBriefingUpload}
                       disabled={!briefingPhoto || briefingSaving}
@@ -207,7 +200,7 @@ export default function EmployeeDashboardPage({ employee, embedded = false }) {
                     onClick={() => setBriefingOpen(true)}
                     className="w-full bg-warning/10 border border-warning/20 text-warning rounded-xl py-3 text-sm font-semibold"
                   >
-                    Ambil Foto Briefing
+                    Upload Foto Briefing
                   </button>
                 )}
               </Section>
@@ -407,7 +400,7 @@ function getStatusLabel(status) {
 function extractTime(dateTimeStr) {
   if (!dateTimeStr) return '-';
   const parts = String(dateTimeStr).split(' ');
-  if (parts.length >= 2) return parts[1].substring(0, 5);
+  if (parts.length >= 2) return parts[1].split(':').slice(0, 2).map(part => part.padStart(2, '0')).join(':');
   return dateTimeStr;
 }
 

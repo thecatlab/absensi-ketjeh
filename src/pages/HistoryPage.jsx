@@ -1,43 +1,32 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useRead } from '../api/useRead'
+import ReadNotice from '../components/ReadNotice'
 import EmployeeSelect from '../components/EmployeeSelect'
 import Modal from '../components/Modal'
 import PhotoDisplay from '../components/PhotoDisplay'
-import { getAbsensi, verifyEmployeePin } from '../api/client'
+import { verifyEmployeePin } from '../api/client'
 
 export default function HistoryPage({ selectedEmployee, employees, onSelectEmployee, verifiedAccess, onPinVerified }) {
-  const [history, setHistory] = useState([])
-  const [loading, setLoading] = useState(false)
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState(null)
   const [verifying, setVerifying] = useState(false)
   const isVerified = selectedEmployee && verifiedAccess?.employeeId === selectedEmployee.id
 
   function handleSelectEmployee(employee) {
-    setHistory([])
     setPin('')
     setPinError(null)
     onSelectEmployee(employee)
   }
 
-  // Load history after the employee has passed the Beranda PIN gate.
-  useEffect(() => {
-    if (!selectedEmployee || !isVerified) return
-    const today = new Date()
-    const dari = new Date(today)
-    dari.setDate(dari.getDate() - 30)
-    const dariStr = dari.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
-    const sampaiStr = today.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
-
-    Promise.resolve()
-      .then(() => {
-        setLoading(true)
-        return getAbsensi(dariStr, sampaiStr, selectedEmployee.id)
-      })
-      .then(res => {
-        if (res.success) setHistory(res.data)
-      })
-      .finally(() => setLoading(false))
-  }, [selectedEmployee, isVerified])
+  const today = new Date()
+  const from = new Date(today.getTime() - 30 * 86400000)
+  const query = useRead('getAbsensi', {
+    dari: from.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }),
+    sampai: today.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }),
+    karyawan_id: selectedEmployee?.id,
+  }, Boolean(isVerified))
+  const history = query.data?.data || []
+  const loading = query.loading
 
   async function handlePinSubmit(e) {
     e.preventDefault()
@@ -68,6 +57,7 @@ export default function HistoryPage({ selectedEmployee, employees, onSelectEmplo
         />
       </div>
 
+      <ReadNotice query={query} />
       {!selectedEmployee ? (
         <div className="bg-gray-50 rounded-xl p-6 text-center text-gray-400 text-sm">
           Pilih nama karyawan untuk melihat riwayat
@@ -262,6 +252,6 @@ function AttendanceDetail({ record }) {
 function extractTime(dateTimeStr) {
   if (!dateTimeStr) return null
   const parts = String(dateTimeStr).split(' ')
-  if (parts.length >= 2) return parts[1].substring(0, 5)
+  if (parts.length >= 2) return parts[1].split(':').slice(0, 2).map(part => part.padStart(2, '0')).join(':')
   return dateTimeStr
 }

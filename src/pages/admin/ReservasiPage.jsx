@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { addReservasi, deleteReservasi, getReservasiAdmin, updateReservasi } from '../../api/client';
+import { useRead } from '../../api/useRead';
+import ReadNotice from '../../components/ReadNotice';
+import { useState } from 'react';
+import { addReservasi, deleteReservasi, updateReservasi } from '../../api/client';
 
-export default function ReservasiPage({ adminPassword, canManage = true, startFormOpen = true }) {
+export default function ReservasiPage({ adminPassword, employeeAuth, canManage = true, startFormOpen = true }) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-  const [items, setItems] = useState([]);
+  const query = useRead('getReservasiAdmin');
+  const items = query.data?.data || [];
+  const loading = query.loading;
   const [viewMode, setViewMode] = useState('calendar');
   const [showForm, setShowForm] = useState(startFormOpen);
   const [selectedDate, setSelectedDate] = useState(today);
@@ -11,7 +15,6 @@ export default function ReservasiPage({ adminPassword, canManage = true, startFo
   const [listDate, setListDate] = useState('');
   const [listSearch, setListSearch] = useState('');
   const [editingId, setEditingId] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [form, setForm] = useState({
@@ -24,17 +27,8 @@ export default function ReservasiPage({ adminPassword, canManage = true, startFo
     status: 'confirmed',
   });
 
-  const loadItems = useCallback(() => {
-    setLoading(true);
-    getReservasiAdmin()
-      .then(res => { if (res.success) setItems(res.data); })
-      .finally(() => setLoading(false));
-  }, []);
+  const loadItems = () => query.refresh().catch(() => {});
 
-  useEffect(() => {
-    const timer = setTimeout(loadItems, 0);
-    return () => clearTimeout(timer);
-  }, [loadItems]);
 
   function showMessage(text, isError = false) {
     setMessage({ text, isError });
@@ -51,8 +45,8 @@ export default function ReservasiPage({ adminPassword, canManage = true, startFo
     if (!form.tanggal || !form.jam || !form.nama_pelanggan.trim()) return;
     setSaving(true);
     const res = editingId
-      ? await updateReservasi(editingId, form, adminPassword)
-      : await addReservasi(form, adminPassword);
+      ? await updateReservasi(editingId, form, adminPassword, employeeAuth)
+      : await addReservasi(form, adminPassword, employeeAuth);
     setSaving(false);
     if (res.error) {
       showMessage(res.error, true);
@@ -87,7 +81,7 @@ export default function ReservasiPage({ adminPassword, canManage = true, startFo
   async function handleDelete(id) {
     if (!canManage) return;
     if (!confirm('Hapus reservasi ini?')) return;
-    const res = await deleteReservasi(id, adminPassword);
+    const res = await deleteReservasi(id, adminPassword, employeeAuth);
     if (res.error) showMessage(res.error, true);
     else { showMessage('Reservasi dihapus'); loadItems(); }
   }
@@ -109,6 +103,7 @@ export default function ReservasiPage({ adminPassword, canManage = true, startFo
 
   return (
     <div>
+      <ReadNotice query={query} />
       {message && (
         <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-medium ${
           message.isError ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'

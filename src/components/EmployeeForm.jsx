@@ -1,18 +1,24 @@
 import { useState } from 'react';
 
-const JABATAN_OPTIONS = ['Kasir', 'Chef', 'Waitress', 'Purchasing', 'Security', 'Admin', 'Delivery', 'Maintenance', 'Manager'];
 const KATEGORI_OPTIONS = ['on-site', 'mobile'];
 
-export default function EmployeeForm({ employee, onSubmit, loading }) {
+export default function EmployeeForm({ employee, jabatanOptions, onSubmit, loading }) {
   const isEdit = !!employee;
 
-  const [form, setForm] = useState({
+  const initialForm = {
     nama: employee?.nama || '',
     jabatan: employee?.jabatan || '',
     kategori: employee?.kategori || 'on-site',
     pin: employee?.pin || '',
     aktif: employee?.aktif !== undefined ? employee.aktif : true,
-  });
+  };
+  const [form, setForm] = useState(initialForm);
+  const options = employee?.jabatan && !jabatanOptions.includes(employee.jabatan)
+    ? [employee.jabatan, ...jabatanOptions]
+    : jabatanOptions;
+  const validJabatan = jabatanOptions.includes(form.jabatan)
+    || (isEdit && form.jabatan === employee.jabatan);
+  const canSubmit = form.nama.trim() && validJabatan && !loading;
 
   function update(field, value) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -20,11 +26,14 @@ export default function EmployeeForm({ employee, onSubmit, loading }) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!form.nama.trim() || !form.jabatan) return;
-    onSubmit(form);
+    if (!canSubmit) return;
+    const changes = isEdit
+      ? Object.fromEntries(Object.entries(form).filter(([field, value]) => (
+        field === 'pin' ? value !== '' : value !== initialForm[field]
+      )))
+      : form;
+    onSubmit(changes);
   }
-
-  const canSubmit = form.nama.trim() && form.jabatan && !loading;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -43,14 +52,15 @@ export default function EmployeeForm({ employee, onSubmit, loading }) {
 
       {/* Jabatan */}
       <div>
-        <label className="text-xs font-medium text-gray-500 mb-1 block">Jabatan *</label>
+        <label htmlFor="employee-jabatan" className="text-xs font-medium text-gray-500 mb-1 block">Jabatan *</label>
         <select
+          id="employee-jabatan"
           value={form.jabatan}
           onChange={e => update('jabatan', e.target.value)}
           className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy/30 bg-white"
         >
           <option value="">Pilih jabatan</option>
-          {JABATAN_OPTIONS.map(j => (
+          {options.map(j => (
             <option key={j} value={j}>{j}</option>
           ))}
         </select>
@@ -78,7 +88,7 @@ export default function EmployeeForm({ employee, onSubmit, loading }) {
         <p className="text-[11px] text-gray-400 mt-1.5">
           {form.kategori === 'on-site'
             ? 'Wajib absen dari area kerja (dalam radius GPS)'
-            : 'Boleh absen dari luar area kerja (misal: Purchasing, Delivery)'}
+            : 'Boleh absen dari luar area kerja (misal: Purchasing)'}
         </p>
       </div>
 

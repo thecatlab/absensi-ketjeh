@@ -1,6 +1,8 @@
 import { CONFIG } from '../config';
+import { invalidateReads, resetReadSession, seedRead, readSession } from './readCache.mjs';
 import {
   MOCK_EMPLOYEES,
+  MOCK_JABATAN,
   MOCK_PIN,
   MOCK_SETTINGS,
   MOCK_ABSENSI_TODAY,
@@ -15,32 +17,124 @@ import {
 } from './mockData';
 
 const GAS_URL = CONFIG.APPS_SCRIPT_URL;
+const READ_URL = '/api/read';
 const CONFIGURATION_ERROR = 'Konfigurasi server belum disetel. Hubungi admin.';
 
-function shouldUseMock() {
-  return import.meta.env.DEV && !GAS_URL;
-}
+// Keep demo data and demo credentials out of every production bundle.
+const USE_MOCKS = import.meta.env.DEV && (import.meta.env.VITE_USE_MOCKS === 'true' || !GAS_URL);
 
 function configurationError() {
   return { success: false, error: CONFIGURATION_ERROR };
 }
 
+let employeeCredential = null;
+let adminCredential = '';
+const pendingWrites = new Map();
+const publicReads = new Set(['getKaryawan', 'getJabatan', 'getPengaturan']);
+const employeeActions = new Set(['clockIn', 'clockOut', 'getAbsensi', 'cekStatusHariIni', 'getEmployeeDashboard', 'setTodoStatus', 'uploadFotoBriefing']);
+
+export function setEmployeeCredential(employeeId, pin) {
+  pendingWrites.clear();
+  employeeCredential = employeeId && pin ? { karyawan_id: employeeId, pin } : null;
+  resetReadSession();
+}
+
+export function setAdminCredential(password) {
+  pendingWrites.clear();
+  adminCredential = password || '';
+  resetReadSession();
+}
+
+export function readScope(action) {
+  if (publicReads.has(action) || action === 'bootstrap') return 'public';
+  const auth = requestCredentials(action, {});
+  return auth.password ? 'admin' : 'employee:' + (auth.karyawan_id || 'anonymous');
+}
+
+export function seedDashboard(dashboard, employeeId) {
+  seedRead(employeeId ? 'getEmployeeDashboard' : 'getAdminDashboard', employeeId ? { karyawan_id: employeeId } : {}, dashboard,
+    readScope(employeeId ? 'getEmployeeDashboard' : 'getAdminDashboard'));
+}
+
+async function fastRead(action, body = {}) {
+  body = Object.fromEntries(Object.entries(body).filter(([, value]) => value !== undefined));
+  const auth = publicReads.has(action) || action === 'bootstrap' ? {} : requestCredentials(action, body);
+  const scope = readScope(action);
+  const capturedSession = readSession();
+  const capturedEmployee = employeeCredential;
+  const capturedAdmin = adminCredential;
+  try {
+    const response = await fetch(READ_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...auth, ...body, action }), cache: 'no-store' });
+    // A platform error page is not JSON; the connection itself worked.
+    const result = await response.json().catch(() => ({ error: 'Server belum dapat diakses. Silakan coba lagi.' }));
+    if (scope !== 'public' && capturedSession !== readSession()) return { error: 'Sesi telah berubah. Silakan coba lagi.' };
+    if (!result || typeof result !== 'object' || (!result.success && !result.error)) return { error: 'Jawaban server tidak lengkap. Silakan coba lagi.' };
+    if (result.code === 'AUTH_REQUIRED' && scope === readScope(action) && capturedEmployee === employeeCredential && capturedAdmin === adminCredential) {
+      if (scope === 'admin') adminCredential = '';
+      else employeeCredential = null;
+      pendingWrites.clear();
+      resetReadSession();
+      window.dispatchEvent(new CustomEvent('ketjeh-auth-expired', { detail: { scope } }));
+    }
+    return result;
+  } catch { return { error: 'Koneksi terputus. Silakan coba lagi.' }; }
+}
+
+function requestCredentials(action, body) {
+  if (body.password) return { password: body.password };
+  if (body.pin) return { karyawan_id: body.karyawan_id, pin: body.pin };
+  if (employeeActions.has(action)) return employeeCredential || {};
+  return adminCredential ? { password: adminCredential } : employeeCredential || {};
+}
+
+async function readResponse(response) {
+  if (!response.ok) return { error: 'Server belum dapat diakses. Silakan coba lagi.' };
+  const result = await response.json();
+  if (!result || typeof result !== 'object' || (!result.success && !result.error)) {
+    return { error: 'Jawaban server tidak lengkap. Silakan coba lagi.' };
+  }
+  return result;
+}
+
 async function gasGet(action, params = {}) {
-  if (!GAS_URL) return configurationError();
-  const url = new URL(GAS_URL);
-  url.searchParams.set('action', action);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString());
-  return res.json();
+  return action === 'getSyncStatus' ? gasPost(action, params) : fastRead(action, params);
 }
 
 async function gasPost(action, body = {}) {
+  if (/^(get|cek|download|verify|adminLogin)/.test(action) && action !== 'getSyncStatus') return fastRead(action, body);
   if (!GAS_URL) return configurationError();
-  const res = await fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, ...body }),
-  });
-  return res.json();
+  const payload = { ...requestCredentials(action, body), ...body, action };
+  const mutation = !/^(get|cek|download|verify|adminLogin|syncSheets)/.test(action);
+  const fingerprint = JSON.stringify(payload);
+  let pending = mutation ? pendingWrites.get(fingerprint) : null;
+  if (pending?.promise) return pending.promise;
+  if (mutation && !pending) {
+    pending = { id: crypto.randomUUID() };
+    pendingWrites.set(fingerprint, pending);
+  }
+  if (pending) payload.operation_id = pending.id;
+  const run = async () => {
+    try {
+      const result = await readResponse(await fetch(GAS_URL, {
+        method: 'POST', body: JSON.stringify(payload),
+      }));
+      if (result.success && pending) {
+        pendingWrites.delete(fingerprint);
+        invalidateReads(action);
+      }
+      return result;
+    } catch {
+      return { error: mutation
+        ? 'Koneksi terputus. Coba kirim lagi dengan data yang sama; penyimpanan tidak akan digandakan.'
+        : 'Koneksi terputus. Silakan coba lagi.' };
+    } finally {
+      if (pending) pending.promise = null;
+    }
+  };
+  const promise = run();
+  if (pending) pending.promise = promise;
+  return promise;
 }
 
 function normalizeClockData(data) {
@@ -67,7 +161,7 @@ function normalizeClockData(data) {
 // ============================================================
 
 export async function getKaryawan() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     return { success: true, data: MOCK_EMPLOYEES };
   }
@@ -75,7 +169,7 @@ export async function getKaryawan() {
 }
 
 export async function cekStatusHariIni(karyawanId) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(200);
     const record = MOCK_ABSENSI_TODAY.find(a => a.karyawan_id === karyawanId);
     if (!record) {
@@ -93,7 +187,7 @@ export async function clockIn(data) {
   const normalized = normalizeClockData(data);
   if (normalized.error) return { success: false, error: normalized.error };
 
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(1000);
     if (String(normalized.data.pin) !== String(MOCK_PIN)) {
       return { error: 'PIN salah' };
@@ -108,7 +202,7 @@ export async function clockOut(data) {
   const normalized = normalizeClockData(data);
   if (normalized.error) return { success: false, error: normalized.error };
 
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(1000);
     if (String(normalized.data.pin) !== String(MOCK_PIN)) {
       return { error: 'PIN salah' };
@@ -120,7 +214,7 @@ export async function clockOut(data) {
 }
 
 export async function getAbsensiHariIni() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(200);
     return { success: true, data: MOCK_ABSENSI_TODAY };
   }
@@ -128,7 +222,7 @@ export async function getAbsensiHariIni() {
 }
 
 export async function getAbsensi(dari, sampai, karyawanId) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(400);
     let data = karyawanId ? generateMockHistory(karyawanId) : [];
     return { success: true, data };
@@ -139,7 +233,7 @@ export async function getAbsensi(dari, sampai, karyawanId) {
 }
 
 export async function getPengaturan() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(100);
     return { success: true, data: MOCK_SETTINGS };
   }
@@ -150,8 +244,8 @@ export async function getPengaturan() {
 // PIN Verification (Employee)
 // ============================================================
 
-export async function verifyEmployeePin(karyawanId, pin) {
-  if (shouldUseMock()) {
+export async function verifyEmployeePin(karyawanId, pin, includeDashboard = false) {
+  if (USE_MOCKS) {
     await delay(300);
     const emp = MOCK_EMPLOYEES.find(e => e.id === karyawanId);
     const expectedPin = emp?.pin || MOCK_PIN;
@@ -160,15 +254,15 @@ export async function verifyEmployeePin(karyawanId, pin) {
     }
     return { success: true, verified: false };
   }
-  return gasPost('verifyPin', { karyawan_id: karyawanId, pin });
+  return gasPost('verifyPin', { karyawan_id: karyawanId, pin, include_dashboard: includeDashboard });
 }
 
 // ============================================================
 // Admin API Functions
 // ============================================================
 
-export async function adminLogin(password) {
-  if (shouldUseMock()) {
+export async function adminLogin(password, includeDashboard = false) {
+  if (USE_MOCKS) {
     await delay(300);
     if (password === MOCK_ADMIN_PASSWORD) {
       return { success: true, role: 'admin' };
@@ -178,11 +272,11 @@ export async function adminLogin(password) {
     }
     return { error: 'Password salah' };
   }
-  return gasPost('adminLogin', { password });
+  return gasPost('adminLogin', { password, include_dashboard: includeDashboard });
 }
 
 export async function getDashboardData() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const todayRecords = MOCK_ABSENSI_TODAY;
     const totalKaryawan = MOCK_EMPLOYEES.length;
@@ -205,19 +299,27 @@ export async function getDashboardData() {
       records: todayRecords,
     };
   }
-  // Real API: combine getAbsensiHariIni + getKaryawan
-  const [absensi, karyawan] = await Promise.all([
-    gasGet('getAbsensiHariIni'),
-    gasGet('getKaryawan'),
-  ]);
-  const records = absensi.data || [];
-  const totalKaryawan = (karyawan.data || []).length;
-  const hadir = records.length;
-  return {
-    success: true,
-    summary: { totalKaryawan, hadir, belumHadir: totalKaryawan - hadir, terlambat: 0, sudahKeluar: 0 },
-    records,
+  return fastRead('getAdminDashboard');
+}
+
+export async function getBootstrap() {
+  if (!USE_MOCKS) return fastRead('bootstrap');
+  const [employees, settings, jabatan] = await Promise.all([getKaryawan(), getPengaturan(), getJabatan()]);
+  return { success: true, data: { employees: employees.data, settings: settings.data, jabatan: jabatan.data } };
+}
+
+export async function readQuery(action, params = {}) {
+  const readers = {
+    bootstrap: getBootstrap,
+    getAdminDashboard: getDashboardData,
+    getEmployeeDashboard: () => getEmployeeDashboard((USE_MOCKS && MOCK_EMPLOYEES.find(employee => employee.id === params.karyawan_id)) || { id: params.karyawan_id }),
+    getAbsensi: () => getAbsensi(params.dari, params.sampai, params.karyawan_id),
+    getReport: () => getReport(params.dari, params.sampai, params.karyawan_id),
+    getAllEmployees: getAdminEmployees,
+    getKaryawan, getPengaturan, getJabatan, getJabatanAdmin, getShiftKhusus,
+    getAdminNotes, getReservasiAdmin, getTodosAdmin, getPengumumanAdmin,
   };
+  return readers[action] ? readers[action]() : { error: 'Permintaan baca tidak valid.' };
 }
 
 // ============================================================
@@ -230,18 +332,40 @@ function getMockEmployees() {
   return _mockEmployees;
 }
 
+export async function getJabatan() {
+  if (USE_MOCKS) {
+    await delay(100);
+    return { success: true, data: MOCK_JABATAN.filter(j => j.aktif).map(j => j.jabatan).sort() };
+  }
+  return gasGet('getJabatan');
+}
+
 export async function getAllEmployees() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     return { success: true, data: getMockEmployees() };
   }
-  // Real API returns only active; for admin we need all
   return gasGet('getKaryawan');
 }
 
+export async function getAdminEmployees(password) {
+  if (USE_MOCKS) return getAllEmployees();
+  const res = await gasPost('getAllEmployees', { password });
+  if (res.success) {
+    res.data = res.data.map(employee => ({
+      ...employee,
+      aktif: String(employee.aktif).toUpperCase() === 'TRUE',
+    }));
+  }
+  return res;
+}
+
 export async function addEmployee(data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(500);
+    if (!MOCK_JABATAN.some(j => j.aktif && j.jabatan === data.jabatan)) {
+      return { error: 'Jabatan tidak aktif atau tidak terdaftar.' };
+    }
     const emps = getMockEmployees();
     const maxNum = emps.reduce((max, e) => {
       const n = parseInt(e.id.substring(1));
@@ -263,11 +387,15 @@ export async function addEmployee(data, password) {
 }
 
 export async function updateEmployee(id, data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(500);
     const emps = getMockEmployees();
     const idx = emps.findIndex(e => e.id === id);
     if (idx === -1) return { error: 'Karyawan tidak ditemukan' };
+    if (data.jabatan !== undefined && data.jabatan !== emps[idx].jabatan
+        && !MOCK_JABATAN.some(j => j.aktif && j.jabatan === data.jabatan)) {
+      return { error: 'Jabatan tidak aktif atau tidak terdaftar.' };
+    }
     // Update fields
     if (data.nama) emps[idx].nama = data.nama;
     if (data.jabatan) emps[idx].jabatan = data.jabatan;
@@ -280,7 +408,7 @@ export async function updateEmployee(id, data, password) {
 }
 
 export async function deactivateEmployee(id, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const emps = getMockEmployees();
     const idx = emps.findIndex(e => e.id === id);
@@ -308,7 +436,7 @@ function getMockShiftKhusus() {
 }
 
 export async function updateSettings(newSettings, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(400);
     const s = getMockSettings();
     Object.assign(s, newSettings);
@@ -318,7 +446,7 @@ export async function updateSettings(newSettings, password) {
 }
 
 export async function getShiftKhusus() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     return { success: true, data: getMockShiftKhusus() };
   }
@@ -326,7 +454,7 @@ export async function getShiftKhusus() {
 }
 
 export async function addShiftKhusus(data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(400);
     const shifts = getMockShiftKhusus();
     // Prevent duplicate date
@@ -347,7 +475,7 @@ export async function addShiftKhusus(data, password) {
 }
 
 export async function deleteShiftKhusus(tanggal, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const shifts = getMockShiftKhusus();
     const idx = shifts.findIndex(s => s.tanggal === tanggal);
@@ -381,7 +509,7 @@ function getMockNotes() {
 }
 
 export async function getAdminNotes() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     return { success: true, data: getMockNotes() };
   }
@@ -389,7 +517,7 @@ export async function getAdminNotes() {
 }
 
 export async function addAdminNote(data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(400);
     const notes = getMockNotes();
     const now = new Date();
@@ -409,7 +537,7 @@ export async function addAdminNote(data, password) {
 }
 
 export async function deleteAdminNote(noteId, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const notes = getMockNotes();
     const idx = notes.findIndex(n => n.id === noteId);
@@ -548,7 +676,7 @@ function getMockClockStatus(employee) {
 }
 
 export async function getEmployeeDashboard(employee) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(300);
     const todayKey = getTodayKey();
     const completions = readTodoCompletions();
@@ -579,7 +707,7 @@ export async function getEmployeeDashboard(employee) {
 }
 
 export async function setTodoStatus(todoId, employee, selesai) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(200);
     const todayKey = getTodayKey();
     const completions = readTodoCompletions();
@@ -598,7 +726,7 @@ export async function setTodoStatus(todoId, employee, selesai) {
 }
 
 export async function uploadBriefingPhoto(employee, fotoBase64) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(500);
     const todayKey = getTodayKey();
     const idx = MOCK_BRIEFING_PHOTOS.findIndex(p => p.tanggal === todayKey && String(p.karyawan_id) === String(employee.id));
@@ -628,7 +756,7 @@ export async function uploadBriefingPhoto(employee, fotoBase64) {
 // ============================================================
 
 export async function getPengumumanAdmin() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     return { success: true, data: getMockPengumuman() };
   }
@@ -636,7 +764,7 @@ export async function getPengumumanAdmin() {
 }
 
 export async function addPengumuman(data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(350);
     getMockPengumuman().push({
       id: 'P' + String(Date.now()).slice(-6),
@@ -649,7 +777,7 @@ export async function addPengumuman(data, password) {
 }
 
 export async function deletePengumuman(id, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     const data = getMockPengumuman();
     const idx = data.findIndex(item => item.id === id);
@@ -660,7 +788,7 @@ export async function deletePengumuman(id, password) {
 }
 
 export async function updatePengumumanStatus(id, aktif, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     const data = getMockPengumuman();
     const item = data.find(row => row.id === id);
@@ -672,7 +800,7 @@ export async function updatePengumumanStatus(id, aktif, password) {
 }
 
 export async function updatePengumuman(id, data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(350);
     const rows = getMockPengumuman();
     const idx = rows.findIndex(item => item.id === id);
@@ -684,15 +812,15 @@ export async function updatePengumuman(id, data, password) {
 }
 
 export async function getReservasiAdmin() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     return { success: true, data: getMockReservasi() };
   }
   return gasGet('getReservasiAdmin');
 }
 
-export async function addReservasi(data, password) {
-  if (shouldUseMock()) {
+export async function addReservasi(data, password, employeeAuth) {
+  if (USE_MOCKS) {
     await delay(350);
     getMockReservasi().push({
       id: 'R' + String(Date.now()).slice(-6),
@@ -701,11 +829,11 @@ export async function addReservasi(data, password) {
     });
     return { success: true, message: 'Reservasi berhasil ditambahkan' };
   }
-  return gasPost('tambahReservasi', { ...data, password });
+  return gasPost('tambahReservasi', { ...data, password, ...employeeAuth });
 }
 
-export async function updateReservasi(id, data, password) {
-  if (shouldUseMock()) {
+export async function updateReservasi(id, data, password, employeeAuth) {
+  if (USE_MOCKS) {
     await delay(350);
     const rows = getMockReservasi();
     const idx = rows.findIndex(item => item.id === id);
@@ -713,22 +841,22 @@ export async function updateReservasi(id, data, password) {
     rows[idx] = { ...rows[idx], ...data, id };
     return { success: true, message: 'Reservasi berhasil diperbarui' };
   }
-  return gasPost('editReservasi', { ...data, id, password });
+  return gasPost('editReservasi', { ...data, id, password, ...employeeAuth });
 }
 
-export async function deleteReservasi(id, password) {
-  if (shouldUseMock()) {
+export async function deleteReservasi(id, password, employeeAuth) {
+  if (USE_MOCKS) {
     await delay(250);
     const data = getMockReservasi();
     const idx = data.findIndex(item => item.id === id);
     if (idx >= 0) data.splice(idx, 1);
     return { success: true, message: 'Reservasi dihapus' };
   }
-  return gasPost('hapusReservasi', { id, password });
+  return gasPost('hapusReservasi', { id, password, ...employeeAuth });
 }
 
 export async function getTodosAdmin() {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     return { success: true, data: getMockTodos() };
   }
@@ -736,7 +864,7 @@ export async function getTodosAdmin() {
 }
 
 export async function addTodo(data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(350);
     getMockTodos().push({
       id: 'T' + String(Date.now()).slice(-6),
@@ -749,7 +877,7 @@ export async function addTodo(data, password) {
 }
 
 export async function updateTodo(id, data, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(350);
     const rows = getMockTodos();
     const idx = rows.findIndex(item => item.id === id);
@@ -761,7 +889,7 @@ export async function updateTodo(id, data, password) {
 }
 
 export async function deleteTodo(id, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(250);
     const data = getMockTodos();
     const idx = data.findIndex(item => item.id === id);
@@ -776,7 +904,7 @@ export async function deleteTodo(id, password) {
 // ============================================================
 
 export async function getReport(dari, sampai, karyawanId, password) {
-  if (shouldUseMock()) {
+  if (USE_MOCKS) {
     await delay(400);
     // Generate mock report data across the date range
     const emps = getMockEmployees();
@@ -854,4 +982,24 @@ function extractTimeFromDatetime(dtStr) {
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function getJabatanAdmin() {
+  if (USE_MOCKS) return { success: true, data: MOCK_JABATAN };
+  return gasPost('getJabatanAdmin');
+}
+
+export async function saveJabatan(jabatan, aktif, password) {
+  if (USE_MOCKS) return { error: 'Perubahan katalog memerlukan server QA.' };
+  return gasPost('simpanJabatan', { jabatan, aktif, password });
+}
+
+export async function getSyncStatus() {
+  if (USE_MOCKS) return { success: true, data: { configured: false } };
+  return gasPost('getSyncStatus');
+}
+
+export async function syncSheets(password) {
+  if (USE_MOCKS) return { error: 'Sinkronisasi memerlukan server QA.' };
+  return gasPost('syncSheets', { password });
 }

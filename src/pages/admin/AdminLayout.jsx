@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import DatabasePanel from './DatabasePanel';
 import DashboardPage from './DashboardPage';
 import EmployeesPage from './EmployeesPage';
 import ShiftsPage from './ShiftsPage';
@@ -13,7 +14,7 @@ const TABS = [
   { id: 'pengumuman', label: 'Pengumuman' },
   { id: 'reservasi', label: 'Reservasi' },
   { id: 'todo', label: 'To-do' },
-  { id: 'karyawan', label: 'Karyawan' },
+  { id: 'karyawan', label: 'Pengaturan' },
   { id: 'shift', label: 'Shift' },
   { id: 'laporan', label: 'Laporan' },
   { id: 'catatan', label: 'Catatan' },
@@ -60,9 +61,12 @@ export default function AdminLayout({ role, password, onLogout }) {
       {activeTab === 'pengumuman' && <PengumumanPage adminPassword={password} role={role} />}
       {activeTab === 'reservasi' && <ReservasiPage adminPassword={password} startFormOpen={false} />}
       {activeTab === 'todo' && <TodosPage adminPassword={password} />}
-      {activeTab === 'karyawan' && <EmployeesPage adminPassword={password} />}
+      {activeTab === 'karyawan' && <>
+        <EmployeesPage adminPassword={password} />
+        {role === 'admin' && <DatabasePanel password={password} onLogout={onLogout} />}
+      </>}
       {activeTab === 'shift' && <ShiftsPage adminPassword={password} />}
-      {activeTab === 'laporan' && <ReportsPage adminPassword={password} />}
+      {activeTab === 'laporan' && <ReportsPage />}
       {activeTab === 'catatan' && <NotesPage adminPassword={password} role={role} />}
     </div>
   );
