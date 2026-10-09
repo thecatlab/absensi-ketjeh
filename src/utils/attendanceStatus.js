@@ -56,3 +56,22 @@ export function diffMinutes(startTime, endTime) {
   if (start === null || end === null) return 0;
   return end - start;
 }
+
+// Minutes past the tolerance limit (shift_mulai + toleransi); 0 when within it.
+export function getLateMinutes(record, settings) {
+  const masuk = timeToMinutes(record?.jam_masuk);
+  const shiftMulai = timeToMinutes(settings?.shift_mulai || '08:00');
+  if (masuk === null || shiftMulai === null) return 0;
+  const toleransi = parseInt(settings?.toleransi_terlambat_menit, 10) || 15;
+  return Math.max(masuk - (shiftMulai + toleransi), 0);
+}
+
+// Minutes clocked out before shift_selesai on the attendance date; 0 otherwise.
+export function getEarlyLeaveMinutes(record, settings) {
+  const keluar = timeToMinutes(record?.jam_keluar);
+  const shiftSelesai = timeToMinutes(settings?.shift_selesai || '17:00');
+  if (keluar === null || shiftSelesai === null) return 0;
+  const keluarDate = String(record.jam_keluar).match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  if (keluarDate && record.tanggal && keluarDate > record.tanggal) return 0;
+  return Math.max(shiftSelesai - keluar, 0);
+}

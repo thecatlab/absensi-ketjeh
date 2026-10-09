@@ -3,7 +3,7 @@ import Modal from '../../components/Modal';
 import PhotoDisplay from '../../components/PhotoDisplay';
 import { useRead, useBootstrap } from '../../api/useRead';
 import ReadNotice from '../../components/ReadNotice';
-import { addMinutes, compareRecordsByLatestInput, diffMinutes, extractTime, getArrivalStatus } from '../../utils/attendanceStatus';
+import { compareRecordsByLatestInput, diffMinutes, extractTime, getArrivalStatus, getEarlyLeaveMinutes, getLateMinutes } from '../../utils/attendanceStatus';
 import { arrayToCSV, downloadCSV } from '../../utils/csvExport';
 
 export default function ReportsPage() {
@@ -23,9 +23,7 @@ export default function ReportsPage() {
     const exportRecords = getFilteredRecords(data?.data || [], statusFilter, settings);
     if (!exportRecords.length) return;
 
-    const shiftMulai = settings?.shift_mulai || '08:00';
     const shiftSelesai = settings?.shift_selesai || '17:00';
-    const toleransi = parseInt(settings?.toleransi_terlambat_menit) || 15;
 
     const headers = [
       { key: 'tanggal', label: 'Tanggal' },
@@ -38,17 +36,16 @@ export default function ReportsPage() {
       { key: 'durasi_terlambat', label: 'Durasi Terlambat (menit)' },
       { key: 'durasi_lembur', label: 'Durasi Lembur (menit)' },
       { key: 'status_lokasi_masuk', label: 'Lokasi Masuk' },
+      { key: 'pulang_awal', label: 'Pulang Lebih Awal (menit)' },
     ];
-
-    const batasTerlambat = addMinutes(shiftMulai, toleransi);
 
     const rows = exportRecords.map(r => {
       const masuk = extractTime(r.jam_masuk);
       const keluar = extractTime(r.jam_keluar);
 
-      // Terlambat: masuk > shift_mulai + toleransi
-      const terlambat = masuk > batasTerlambat;
-      const menitTerlambat = terlambat ? diffMinutes(shiftMulai, masuk) : 0;
+      // Terlambat: minutes past shift_mulai + toleransi, same as the table.
+      const menitTerlambat = getLateMinutes(r, settings);
+      const menitPulangAwal = getEarlyLeaveMinutes(r, settings);
 
       // Lembur: keluar > shift_selesai
       const lembur = keluar && keluar !== '-' && keluar > shiftSelesai;
@@ -58,9 +55,10 @@ export default function ReportsPage() {
         ...r,
         jam_masuk: masuk,
         jam_keluar: keluar,
-        status_kehadiran: terlambat ? 'Terlambat' : 'Tepat Waktu',
+        status_kehadiran: menitTerlambat > 0 ? 'Terlambat' : 'Tepat Waktu',
         durasi_terlambat: menitTerlambat > 0 ? menitTerlambat : '',
         durasi_lembur: menitLembur > 0 ? menitLembur : '',
+        pulang_awal: menitPulangAwal > 0 ? menitPulangAwal : '',
       };
     });
 
@@ -315,10 +313,10 @@ function DateGroup({ date, records, settings, onViewRecord }) {
         <table className="w-full table-fixed text-xs">
           <thead>
             <tr className="bg-gray-50 text-gray-400 text-left">
-              <th className="w-[36%] py-2 px-3 font-medium">Nama</th>
-              <th className="w-[17%] py-2 px-3 font-medium">Masuk</th>
-              <th className="w-[17%] py-2 px-3 font-medium">Keluar</th>
-              <th className="w-[18%] py-2 px-3 font-medium">Durasi</th>
+              <th className="w-[31%] py-2 px-3 font-medium">Nama</th>
+              <th className="w-[16%] py-2 px-3 font-medium">Masuk</th>
+              <th className="w-[16%] py-2 px-3 font-medium">Keluar</th>
+              <th className="w-[25%] py-2 px-3 font-medium">Terlambat</th>
               <th className="w-[12%] py-2 px-3 font-medium text-center">Lok</th>
             </tr>
           </thead>
@@ -334,7 +332,7 @@ function DateGroup({ date, records, settings, onViewRecord }) {
                   <td className="py-2 px-3 font-medium text-gray-700 truncate">{r.nama}</td>
                   <td className={`py-2 px-3 font-semibold ${masukClass}`}>{masuk}</td>
                   <td className="py-2 px-3 text-gray-600">{keluar}</td>
-                  <td className="py-2 px-3 text-gray-600">{r.durasi_jam}j</td>
+                  <td className="py-2 px-3"><LatenessCell record={r} settings={settings} /></td>
                   <td className="py-2 px-3 text-center">
                     <span className={`inline-block w-2 h-2 rounded-full ${isOffSite ? 'bg-warning' : 'bg-success'}`} />
                   </td>
@@ -346,6 +344,24 @@ function DateGroup({ date, records, settings, onViewRecord }) {
       </div>
     </div>
   );
+}
+
+function LatenessCell({ record, settings }) {
+  const late = getLateMinutes(record, settings);
+  const early = getEarlyLeaveMinutes(record, settings);
+  if (!late && !early) return <span className="text-gray-300">-</span>;
+  return (
+    <div className="leading-tight">
+      {late > 0 && <p className="font-semibold text-danger">{formatMinutes(late)}</p>}
+      {early > 0 && <p className="text-[10px] text-warning">Pulang -{formatMinutes(early)}</p>}
+    </div>
+  );
+}
+
+function formatMinutes(total) {
+  if (total < 60) return `${total}m`;
+  const minutes = total % 60;
+  return minutes ? `${Math.floor(total / 60)}j ${minutes}m` : `${total / 60}j`;
 }
 
 function getArrivalTimeClass(status) {
