@@ -66,7 +66,8 @@ async function fastRead(action, body = {}) {
   try {
     const response = await fetch(READ_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...auth, ...body, action }), cache: 'no-store' });
-    const result = await response.json();
+    // A platform error page is not JSON; the connection itself worked.
+    const result = await response.json().catch(() => ({ error: 'Server belum dapat diakses. Silakan coba lagi.' }));
     if (scope !== 'public' && capturedSession !== readSession()) return { error: 'Sesi telah berubah. Silakan coba lagi.' };
     if (!result || typeof result !== 'object' || (!result.success && !result.error)) return { error: 'Jawaban server tidak lengkap. Silakan coba lagi.' };
     if (result.code === 'AUTH_REQUIRED' && scope === readScope(action) && capturedEmployee === employeeCredential && capturedAdmin === adminCredential) {

@@ -1,4 +1,5 @@
 // Read-only equivalents of the Apps Script handlers. Writes remain in Apps Script.
+import { getArrivalStatus } from '../src/utils/attendanceStatus.js';
 const dashboardTables = ['Absensi', 'Todo', 'TodoStatus', 'FotoBriefing', 'Reservasi', 'Pengumuman', 'Pengaturan'];
 export const READ_TABLES = {
   bootstrap: ['Karyawan', 'Pengaturan', 'Jabatan'],
@@ -110,7 +111,10 @@ export function readResult(body, snapshot, today) {
   const adminDashboard = () => {
     const records = todayAttendance();
     const totalKaryawan = employees().length;
-    return { success: true, summary: { totalKaryawan, hadir: records.length, belumHadir: totalKaryawan - records.length, terlambat: 0, sudahKeluar: 0 }, records, settings: settings() };
+    const current = settings();
+    const terlambat = records.filter(row => getArrivalStatus(row, current) === 'late').length;
+    const sudahKeluar = records.filter(row => row.jam_keluar.trim()).length;
+    return { success: true, summary: { totalKaryawan, hadir: records.length, belumHadir: totalKaryawan - records.length, terlambat, sudahKeluar }, records, settings: current };
   };
   switch (body.action) {
     case 'bootstrap': return { success: true, data: { employees: employees(), settings: settings(), jabatan: jabatan() } };

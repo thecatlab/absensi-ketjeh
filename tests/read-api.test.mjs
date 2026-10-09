@@ -111,3 +111,18 @@ test('read endpoint verifies credentials on every request and never exposes prov
   assert.equal(calls, 2);
   assert.equal((await handleRead({ action: 'getAdminNotes' }, { ...options, fetcher: async () => ({ ok: false }) })).status, 503);
 });
+
+test('admin dashboard summary counts late arrivals and clock-outs in WIB today', () => {
+  const dataset = (headers, rows) => ({ headers, revision: 1, rows: rows.map((data, index) => ({ id: String(index), ordinal: index + 1, data })) });
+  const snapshot = { auth: { role: 'admin' }, datasets: {
+    Karyawan: dataset(['id', 'nama', 'jabatan', 'aktif'], [{ id: 'K1', aktif: 'TRUE' }, { id: 'K2', aktif: 'TRUE' }, { id: 'K3', aktif: 'TRUE' }]),
+    Pengaturan: dataset(['key', 'value'], [{ key: 'shift_mulai', value: '08:00' }, { key: 'toleransi_terlambat_menit', value: '15' }]),
+    Absensi: dataset(['id', 'karyawan_id', 'tanggal', 'jam_masuk', 'jam_keluar'], [
+      { id: 'A1', karyawan_id: 'K1', tanggal: today, jam_masuk: today + ' 08:10:00', jam_keluar: today + ' 17:00:00' },
+      { id: 'A2', karyawan_id: 'K2', tanggal: today, jam_masuk: today + ' 08:16:00', jam_keluar: '' },
+      { id: 'A3', karyawan_id: 'K3', tanggal: '2026-10-01', jam_masuk: '2026-10-01 09:00:00', jam_keluar: '' },
+    ]),
+  } };
+  assert.deepEqual(readResult({ action: 'getAdminDashboard' }, snapshot, today).summary,
+    { totalKaryawan: 3, hadir: 2, belumHadir: 1, terlambat: 1, sudahKeluar: 1 });
+});

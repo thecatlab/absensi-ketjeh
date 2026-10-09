@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Camera from '../components/Camera';
 import LocationStatus from '../components/LocationStatus';
@@ -191,17 +191,18 @@ function SuccessScreen({ isClockIn, employee, result, onDone }) {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          onDone();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setCountdown(prev => Math.max(prev - 1, 0));
     }, 1000);
     return () => clearInterval(timer);
-  }, [onDone]);
+  }, []);
+
+  // Navigate after the render, not inside the state updater, and only once.
+  const done = useRef(false);
+  useEffect(() => {
+    if (countdown > 0 || done.current) return;
+    done.current = true;
+    onDone();
+  }, [countdown, onDone]);
 
   return (
     <div className="px-5 py-10 text-center">
