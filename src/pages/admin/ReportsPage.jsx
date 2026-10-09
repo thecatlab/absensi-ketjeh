@@ -122,7 +122,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-2 gap-1 bg-gray-100 rounded-xl p-1 mb-4 print:hidden">
         {[
           { id: 'detail', label: 'Detail' },
-          { id: 'rekap', label: 'Rekap Terlambat' },
+          { id: 'rekap', label: 'Total' },
         ].map(item => (
           <button
             key={item.id}
