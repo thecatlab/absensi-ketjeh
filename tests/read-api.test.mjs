@@ -47,6 +47,8 @@ for (const role of ['admin', 'manager', 'employee', 'anonymous']) {
     const { snapshot, legacy } = fixture(role);
     for (const action of ['getKaryawan','getPengaturan','getJabatan','adminLogin','verifyPin','getAllEmployees','getAbsensiHariIni','getAbsensi','downloadAbsensi','getReport','cekStatusHariIni','getEmployeeDashboard','getShiftKhusus','getAdminNotes','getPengumumanAdmin','getReservasiAdmin','getTodosAdmin','getJabatanAdmin']) {
       const body = { action, password: role === 'admin' || role === 'manager' ? 'synthetic' : '', karyawan_id: 'K001', pin: '0012', dari: '2026-09-01', sampai: today };
+      // The job-title catalog is owner-only now; covered by its own test below.
+      if (role === 'manager' && action === 'getJabatanAdmin') continue;
       let expected;
       try { expected = legacy(body); } catch (error) { expected = { error: error.message }; }
       const actual = readResult(body, snapshot, today);
@@ -125,4 +127,12 @@ test('admin dashboard summary counts late arrivals and clock-outs in WIB today',
   } };
   assert.deepEqual(readResult({ action: 'getAdminDashboard' }, snapshot, today).summary,
     { totalKaryawan: 3, hadir: 2, belumHadir: 1, terlambat: 1, sudahKeluar: 1 });
+});
+
+test('the job-title catalog is readable by the owner only', () => {
+  const read = role => readResult({ action: 'getJabatanAdmin', password: 'synthetic', karyawan_id: 'K001' }, fixture(role).snapshot, today);
+  assert.equal(read('admin').success, true);
+  // Managers stay logged in; they are refused without an auth-expiry code.
+  assert.deepEqual(read('manager'), { error: 'Akses ditolak. Hanya admin.' });
+  for (const role of ['employee', 'anonymous']) assert.equal(read(role).code, 'AUTH_REQUIRED', role);
 });

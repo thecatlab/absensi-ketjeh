@@ -4,9 +4,10 @@ import ReadNotice from '../../components/ReadNotice';
 import Modal from '../../components/Modal';
 import EmployeeForm from '../../components/EmployeeForm';
 import SettingsPanel from './SettingsPanel';
+import DatabasePanel from './DatabasePanel';
 import { addEmployee, updateEmployee, deactivateEmployee } from '../../api/client';
 
-export default function EmployeesPage({ adminPassword }) {
+export default function EmployeesPage({ adminPassword, role, onLogout }) {
   const query = useRead('getAllEmployees');
   const reference = useBootstrap();
   const employees = query.data?.data || [];
@@ -125,13 +126,17 @@ export default function EmployeesPage({ adminPassword }) {
         loading ? (
           <div className="h-40 bg-gray-100 rounded-xl animate-pulse" />
         ) : (
-          <SettingsPanel
-            settings={settings}
-            jabatanOptions={jabatanOptions}
-            adminPassword={adminPassword}
-            onSaved={(text) => { showMessage(text); loadEmployees(); }}
-            onError={(text) => showMessage(text, true)}
-          />
+          <>
+            <SettingsPanel
+              settings={settings}
+              jabatanOptions={jabatanOptions}
+              adminPassword={adminPassword}
+              onSaved={(text) => { showMessage(text); loadEmployees(); }}
+              onError={(text) => showMessage(text, true)}
+            />
+            {/* Jabatan, passwords and Sheets sync are owner (admin) only. */}
+            {role === 'admin' && <DatabasePanel password={adminPassword} onLogout={onLogout} />}
+          </>
         )
       ) : (
         <>

@@ -16,6 +16,7 @@ export const READ_TABLES = {
 const publicActions = new Set(['bootstrap', 'getKaryawan', 'getJabatan', 'getPengaturan', 'verifyPin', 'adminLogin']);
 const employeeActions = new Set(['getAbsensi', 'cekStatusHariIni', 'getEmployeeDashboard', 'getReservasiAdmin']);
 const employeeOnly = new Set(['cekStatusHariIni', 'getEmployeeDashboard']);
+const adminOnly = new Set(['getJabatanAdmin']);
 export const todayWib = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 const clean = value => Object.fromEntries(Object.entries(value).filter(([key]) => !/pin|password|credential|secret|token/i.test(key)));
 const active = value => String(value).toUpperCase() === 'TRUE';
@@ -73,6 +74,8 @@ function targetMatches(item, employee) {
 export function readResult(body, snapshot, today) {
   const auth = snapshot.auth || {};
   if (!authorized(body, auth)) return { error: 'Akses ditolak. Verifikasi PIN atau login kembali.', code: 'AUTH_REQUIRED' };
+  // A valid manager login is refused without AUTH_REQUIRED, which would end the session.
+  if (adminOnly.has(body.action) && auth.role !== 'admin') return { error: 'Akses ditolak. Hanya admin.' };
   const rows = name => {
     const dataset = snapshot.datasets[name];
     if (!dataset || !Array.isArray(dataset.rows)) throw new Error('Skema database tidak cocok: ' + name);
